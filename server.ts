@@ -8,6 +8,7 @@ import { GameState } from "./src/types/index.js";
 async function startServer() {
   const app = express();
   const PORT = 3000;
+  console.log("NODE_ENV is:", process.env.NODE_ENV);
   const server = http.createServer(app);
   const io = new Server(server, {
     cors: {
@@ -21,15 +22,11 @@ async function startServer() {
   });
 
   // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    app.use(express.static("dist"));
-  }
+  const vite = await createViteServer({
+    server: { middlewareMode: true },
+    appType: "spa",
+  });
+  app.use(vite.middlewares);
 
   // Matchmaking and Game State
   let waitingPlayer: string | null = null;

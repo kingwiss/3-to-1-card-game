@@ -7,7 +7,7 @@ import { playSound } from '../utils/sound';
 import { ChevronUp, ChevronDown, Users, User, BookOpen } from 'lucide-react';
 
 const Game: React.FC = () => {
-  const { gameState, setGameState, sendAction, isMultiplayer, setIsMultiplayer, isWaiting, playerIndex } = useGame();
+  const { gameState, setGameState, sendAction, isMultiplayer, setIsMultiplayer, isWaiting, playerIndex, startMatchmaking, cancelMatchmaking, disconnectMultiplayer, isFirebaseReady } = useGame();
   const [isHandExpanded, setIsHandExpanded] = useState(false);
   const [isPlayerRowExpanded, setIsPlayerRowExpanded] = useState(false);
   const [isOpponentRowExpanded, setIsOpponentRowExpanded] = useState(false);
@@ -140,10 +140,10 @@ const Game: React.FC = () => {
   if (isWaiting) {
     return (
       <div className="w-full max-w-md mx-auto h-[100dvh] flex flex-col items-center justify-center text-white p-4 font-sans">
-        <h2 className="text-2xl font-bold mb-4">Waiting for opponent...</h2>
+        <h2 className="text-2xl font-bold mb-4">Searching for opponent...</h2>
         <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-8"></div>
         <button 
-          onClick={() => setIsMultiplayer(false)}
+          onClick={cancelMatchmaking}
           className="px-6 py-2 bg-slate-700 rounded-lg hover:bg-slate-600"
         >
           Cancel
@@ -510,11 +510,17 @@ const Game: React.FC = () => {
               
               <button 
                 onClick={() => {
-                  setIsMultiplayer(!isMultiplayer);
+                  if (isMultiplayer) {
+                    if (window.confirm("Disconnect from current game?")) {
+                      disconnectMultiplayer();
+                    }
+                  } else {
+                    startMatchmaking(gameState.isStrategicMode);
+                  }
                   setIsMenuOpen(false);
                 }}
                 className={`w-12 h-12 border rounded-full flex items-center justify-center transition-colors shadow-lg ${isMultiplayer ? 'bg-blue-600 border-blue-500 text-white hover:bg-blue-500' : 'bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white'}`}
-                title={isMultiplayer ? 'Playing vs Real User' : 'Play vs Real User'}
+                title={isMultiplayer ? 'Disconnect' : 'Play vs Real User'}
               >
                 {isMultiplayer ? <Users size={20} /> : <User size={20} />}
               </button>
