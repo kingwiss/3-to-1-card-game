@@ -1,7 +1,7 @@
 import React, { createContext, useState, ReactNode, useEffect, useCallback } from 'react';
 import { GameState } from '../types';
 import { initGame, drawCard, addDrawnCardToHand, addDrawnCardToTarget, playCard, endTurn, startNextRound } from '../services/gameService';
-import Peer, { DataConnection } from 'peerjs';
+import { Peer, DataConnection } from 'peerjs';
 
 interface GameContextProps {
   gameState: GameState;
@@ -67,12 +67,6 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setCancelSearch(() => cancel);
 
     try {
-      // Robust Peer class retrieval
-      const PeerClass = (Peer as any).default || Peer;
-      if (!PeerClass) {
-        throw new Error("PeerJS library not loaded correctly.");
-      }
-
       // Helper to check a specific lobby
       const checkLobby = async (lobbyId: string): Promise<boolean> => {
         if (isCancelled) return true;
@@ -81,7 +75,9 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         return new Promise<boolean>((resolve) => {
           try {
-            const tempPeer = new PeerClass();
+            const tempPeer = new Peer(undefined, {
+              debug: 2
+            });
             
             tempPeer.on('open', () => {
               const connection = tempPeer.connect(lobbyId);
@@ -91,7 +87,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 connection.close();
                 tempPeer.destroy();
                 resolve(false);
-              }, 1000); // 1s timeout
+              }, 1500); // 1.5s timeout
 
               connection.on('open', () => {
                 clearTimeout(timeout);
@@ -156,7 +152,9 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         return new Promise<boolean>((resolve) => {
           try {
-            const newPeer = new PeerClass(lobbyId);
+            const newPeer = new Peer(lobbyId, {
+              debug: 2
+            });
 
             newPeer.on('open', () => {
               console.log(`Hosting ${lobbyId}!`);
@@ -227,17 +225,13 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       if (!isCancelled) {
-        alert("Unable to find a match. Please try again.");
-        setIsWaiting(false);
-        setIsPvP(false);
-        setMatchmakingStatus('');
+        setMatchmakingStatus("Unable to find a match. Please try again.");
+        // Do not reset isWaiting automatically, let user see message
       }
     } catch (err) {
       console.error("Matchmaking error:", err);
-      alert(`Matchmaking failed: ${err}`);
-      setIsWaiting(false);
-      setIsPvP(false);
-      setMatchmakingStatus('');
+      setMatchmakingStatus(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      // Do not reset isWaiting automatically
     }
 
   }, [cleanupPeer]);
