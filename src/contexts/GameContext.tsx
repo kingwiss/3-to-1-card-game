@@ -1,7 +1,7 @@
 import React, { createContext, useState, ReactNode, useEffect, useCallback } from 'react';
 import { GameState } from '../types';
 import { initGame, drawCard, addDrawnCardToHand, addDrawnCardToTarget, playCard, endTurn, startNextRound } from '../services/gameService';
-import { Peer, DataConnection } from 'peerjs';
+import type { Peer, DataConnection } from 'peerjs';
 
 interface GameContextProps {
   gameState: GameState;
@@ -20,7 +20,7 @@ interface GameContextProps {
 export const GameContext = createContext<GameContextProps | undefined>(undefined);
 
 const LOBBY_PREFIX = 'neural-game-v1-lobby-';
-const MAX_LOBBIES = 20; // Increased to reduce collisions
+const MAX_LOBBIES = 20;
 
 export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [gameState, setGameState] = useState<GameState>(initGame());
@@ -34,7 +34,6 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [cancelSearch, setCancelSearch] = useState<(() => void) | null>(null);
 
   useEffect(() => {
-    // This is a safeguard against stale state from hot-reloading.
     if (!gameState.round || gameState.players.some(p => p.persistentScore === undefined)) {
       setGameState(initGame());
     }
@@ -42,10 +41,10 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const cleanupPeer = useCallback(() => {
     if (conn) {
-      conn.close();
+      try { conn.close(); } catch(e) { console.error(e); }
     }
     if (peer) {
-      peer.destroy();
+      try { peer.destroy(); } catch(e) { console.error(e); }
     }
     setConn(null);
     setPeer(null);
@@ -55,11 +54,14 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const startMatchmaking = useCallback(async (isStrategicMode: boolean) => {
     console.log("Starting matchmaking...");
+    
+    // 1. Set UI state immediately
     setIsPvP(true);
     setIsWaiting(true);
-    setMatchmakingStatus('Initializing...');
+    setMatchmakingStatus('Initializing PeerJS...');
     setPlayerIndex(0); 
     
+    // 2. Cleanup previous connections
     cleanupPeer();
 
     let isCancelled = false;
@@ -67,27 +69,35 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setCancelSearch(() => cancel);
 
     try {
-      // Helper to check a specific lobby
+      // 3. Dynamic Import for Robustness
+      const peerModule = await import('peerjs');
+      const PeerClass = peerModule.Peer || (peerModule as any).default;
+      
+      if (!PeerClass) {
+        throw new Error("Failed to load PeerJS library");
+      }
+
+      // 4. Helper to create a Promise-based timeout
+      const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+      // 5. Helper to check a lobby
       const checkLobby = async (lobbyId: string): Promise<boolean> => {
         if (isCancelled) return true;
         setMatchmakingStatus(`Checking lobby...`);
-        console.log(`Checking lobby: ${lobbyId}`);
-
+        
         return new Promise<boolean>((resolve) => {
           try {
-            const tempPeer = new Peer(undefined, {
-              debug: 2
-            });
+            const tempPeer = new PeerClass();
             
             tempPeer.on('open', () => {
               const connection = tempPeer.connect(lobbyId);
               
               const timeout = setTimeout(() => {
-                console.log(`Timeout/No Host at ${lobbyId}`);
+                console.log(`Timeout at ${lobbyId}`);
                 connection.close();
                 tempPeer.destroy();
                 resolve(false);
-              }, 1500); // 1.5s timeout
+              }, 2000); 
 
               connection.on('open', () => {
                 clearTimeout(timeout);
@@ -109,7 +119,6 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     }
                     setGameState(newState);
                   } else if (data.type === 'LOBBY_FULL') {
-                    console.log("Lobby full");
                     connection.close();
                     tempPeer.destroy();
                     resolve(false);
@@ -124,37 +133,32 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 resolve(true);
               });
 
-              connection.on('error', (err: any) => {
-                console.log("Connection error", err);
+              connection.on('error', () => {
                 clearTimeout(timeout);
                 tempPeer.destroy();
                 resolve(false);
               });
             });
 
-            tempPeer.on('error', (err: any) => {
-              console.log("Peer error", err);
+            tempPeer.on('error', () => {
               tempPeer.destroy();
               resolve(false);
             });
           } catch (e) {
-            console.error("Peer creation failed", e);
+            console.error(e);
             resolve(false);
           }
         });
       };
 
-      // Helper to host a lobby
+      // 6. Helper to host
       const hostLobby = async (lobbyId: string): Promise<boolean> => {
         if (isCancelled) return true;
         setMatchmakingStatus(`Creating lobby...`);
-        console.log(`Attempting to host: ${lobbyId}`);
-
+        
         return new Promise<boolean>((resolve) => {
           try {
-            const newPeer = new Peer(lobbyId, {
-              debug: 2
-            });
+            const newPeer = new PeerClass(lobbyId);
 
             newPeer.on('open', () => {
               console.log(`Hosting ${lobbyId}!`);
@@ -199,39 +203,37 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               resolve(true);
             });
 
-            newPeer.on('error', (err: any) => {
-              console.log(`Failed to host ${lobbyId} (likely taken)`);
+            newPeer.on('error', () => {
               newPeer.destroy();
               resolve(false);
             });
           } catch (e) {
-            console.error("Peer creation failed", e);
+            console.error(e);
             resolve(false);
           }
         });
       };
 
-      // Generate random permutation
+      // 7. Execution Strategy
       const indices = Array.from({ length: MAX_LOBBIES }, (_, i) => i).sort(() => Math.random() - 0.5);
       
-      // Try to join first few
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < 3; i++) {
         if (await checkLobby(`${LOBBY_PREFIX}${indices[i]}`)) return;
+        await wait(500);
       }
 
-      // Try to host on the rest
-      for (let i = 5; i < MAX_LOBBIES; i++) {
+      for (let i = 3; i < 6; i++) {
         if (await hostLobby(`${LOBBY_PREFIX}${indices[i]}`)) return;
+        await wait(500);
       }
 
       if (!isCancelled) {
-        setMatchmakingStatus("Unable to find a match. Please try again.");
-        // Do not reset isWaiting automatically, let user see message
+        setMatchmakingStatus("No match found. Please try again.");
       }
+
     } catch (err) {
       console.error("Matchmaking error:", err);
       setMatchmakingStatus(`Error: ${err instanceof Error ? err.message : String(err)}`);
-      // Do not reset isWaiting automatically
     }
 
   }, [cleanupPeer]);
