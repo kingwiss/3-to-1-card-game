@@ -1,0 +1,5 @@
+{
+  "name": "2nd Copy of 1 to 3 Card Game",
+  "description": "A modern, dark-themed card game where players compete to hit target numbers. Features both Standard Mandatory protocol (must play valid cards) and Advanced Strategic protocol (allows tactical passing and 0-2 card control).",
+  "requestFramePermissions": []
+}
