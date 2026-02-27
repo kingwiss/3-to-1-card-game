@@ -10,6 +10,7 @@ interface GameContextProps {
   isPvP: boolean;
   setIsPvP: (val: boolean) => void;
   isWaiting: boolean;
+  matchmakingStatus: string;
   playerIndex: number;
   startMatchmaking: (isStrategicMode: boolean) => Promise<void>;
   cancelMatchmaking: () => void;
@@ -27,6 +28,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [conn, setConn] = useState<DataConnection | null>(null);
   const [isPvP, setIsPvP] = useState(false);
   const [isWaiting, setIsWaiting] = useState(false);
+  const [matchmakingStatus, setMatchmakingStatus] = useState('');
   const [playerIndex, setPlayerIndex] = useState(0);
   const [isHost, setIsHost] = useState(false);
   const [cancelSearch, setCancelSearch] = useState<(() => void) | null>(null);
@@ -48,164 +50,195 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setConn(null);
     setPeer(null);
     setIsHost(false);
+    setMatchmakingStatus('');
   }, [conn, peer]);
 
   const startMatchmaking = useCallback(async (isStrategicMode: boolean) => {
+    console.log("Starting matchmaking...");
     setIsPvP(true);
     setIsWaiting(true);
-    setPlayerIndex(0); // Default, will update if matched as P2
+    setMatchmakingStatus('Initializing...');
+    setPlayerIndex(0); 
     
-    // Cleanup previous attempts
     cleanupPeer();
 
     let isCancelled = false;
     const cancel = () => { isCancelled = true; };
     setCancelSearch(() => cancel);
 
-    // Helper to check a specific lobby
-    const checkLobby = async (lobbyId: string): Promise<boolean> => {
-      if (isCancelled) return true;
-      console.log(`Checking lobby: ${lobbyId}`);
+    try {
+      // Robust Peer class retrieval
+      const PeerClass = (Peer as any).default || Peer;
+      if (!PeerClass) {
+        throw new Error("PeerJS library not loaded correctly.");
+      }
 
-      return new Promise<boolean>((resolve) => {
-        const tempPeer = new Peer();
-        
-        tempPeer.on('open', () => {
-          const connection = tempPeer.connect(lobbyId);
-          
-          const timeout = setTimeout(() => {
-            console.log(`Timeout/No Host at ${lobbyId}`);
-            connection.close();
-            tempPeer.destroy();
-            resolve(false);
-          }, 1500); // Short timeout for faster scanning
+      // Helper to check a specific lobby
+      const checkLobby = async (lobbyId: string): Promise<boolean> => {
+        if (isCancelled) return true;
+        setMatchmakingStatus(`Checking lobby...`);
+        console.log(`Checking lobby: ${lobbyId}`);
 
-          connection.on('open', () => {
-            clearTimeout(timeout);
-            console.log(`Connected to ${lobbyId}!`);
+        return new Promise<boolean>((resolve) => {
+          try {
+            const tempPeer = new PeerClass();
             
-            setPeer(tempPeer);
-            setConn(connection);
-            setPlayerIndex(1);
-            setIsHost(false);
-            setIsWaiting(false);
-
-            connection.on('data', (data: any) => {
-              if (data.type === 'gameStateUpdate') {
-                const newState = data.state;
-                if (newState.players[1].name === "Player 2") {
-                     newState.players[1].name = "Player 2 (You)";
-                     newState.players[0].name = "Player 1";
-                }
-                setGameState(newState);
-              } else if (data.type === 'LOBBY_FULL') {
-                console.log("Lobby full");
+            tempPeer.on('open', () => {
+              const connection = tempPeer.connect(lobbyId);
+              
+              const timeout = setTimeout(() => {
+                console.log(`Timeout/No Host at ${lobbyId}`);
                 connection.close();
                 tempPeer.destroy();
                 resolve(false);
-              }
-            });
+              }, 1000); // 1s timeout
 
-            connection.on('close', () => {
-              alert('Opponent disconnected.');
-              disconnectPvP();
-            });
-
-            resolve(true);
-          });
-
-          connection.on('error', () => {
-            clearTimeout(timeout);
-            tempPeer.destroy();
-            resolve(false);
-          });
-        });
-
-        tempPeer.on('error', () => {
-          tempPeer.destroy();
-          resolve(false);
-        });
-      });
-    };
-
-    // Helper to host a lobby
-    const hostLobby = async (lobbyId: string): Promise<boolean> => {
-      if (isCancelled) return true;
-      console.log(`Attempting to host: ${lobbyId}`);
-
-      return new Promise<boolean>((resolve) => {
-        const newPeer = new Peer(lobbyId);
-
-        newPeer.on('open', () => {
-          console.log(`Hosting ${lobbyId}!`);
-          setPeer(newPeer);
-          setIsHost(true);
-          
-          const initialState = initGame(isStrategicMode);
-          initialState.players[0].name = "Player 1 (You)";
-          initialState.players[1].name = "Player 2";
-          initialState.mode = "multiplayer";
-          setGameState(initialState);
-
-          newPeer.on('connection', (connection) => {
-            if (conn) {
               connection.on('open', () => {
-                connection.send({ type: 'LOBBY_FULL' });
-                setTimeout(() => connection.close(), 500);
+                clearTimeout(timeout);
+                console.log(`Connected to ${lobbyId}!`);
+                setMatchmakingStatus('Connected! Starting game...');
+                
+                setPeer(tempPeer);
+                setConn(connection);
+                setPlayerIndex(1);
+                setIsHost(false);
+                setIsWaiting(false);
+
+                connection.on('data', (data: any) => {
+                  if (data.type === 'gameStateUpdate') {
+                    const newState = data.state;
+                    if (newState.players[1].name === "Player 2") {
+                        newState.players[1].name = "Player 2 (You)";
+                        newState.players[0].name = "Player 1";
+                    }
+                    setGameState(newState);
+                  } else if (data.type === 'LOBBY_FULL') {
+                    console.log("Lobby full");
+                    connection.close();
+                    tempPeer.destroy();
+                    resolve(false);
+                  }
+                });
+
+                connection.on('close', () => {
+                  alert('Opponent disconnected.');
+                  disconnectPvP();
+                });
+
+                resolve(true);
               });
-              return;
-            }
 
-            console.log("Player connected!");
-            setConn(connection);
-            setIsWaiting(false);
-
-            connection.on('open', () => {
-              connection.send({ type: 'gameStateUpdate', state: initialState });
+              connection.on('error', (err: any) => {
+                console.log("Connection error", err);
+                clearTimeout(timeout);
+                tempPeer.destroy();
+                resolve(false);
+              });
             });
 
-            connection.on('data', (data: any) => {
-              handleAction(data);
+            tempPeer.on('error', (err: any) => {
+              console.log("Peer error", err);
+              tempPeer.destroy();
+              resolve(false);
             });
-
-            connection.on('close', () => {
-              alert('Opponent disconnected.');
-              disconnectPvP();
-            });
-          });
-
-          resolve(true);
+          } catch (e) {
+            console.error("Peer creation failed", e);
+            resolve(false);
+          }
         });
+      };
 
-        newPeer.on('error', (err: any) => {
-          console.log(`Failed to host ${lobbyId} (likely taken)`);
-          newPeer.destroy();
-          resolve(false);
+      // Helper to host a lobby
+      const hostLobby = async (lobbyId: string): Promise<boolean> => {
+        if (isCancelled) return true;
+        setMatchmakingStatus(`Creating lobby...`);
+        console.log(`Attempting to host: ${lobbyId}`);
+
+        return new Promise<boolean>((resolve) => {
+          try {
+            const newPeer = new PeerClass(lobbyId);
+
+            newPeer.on('open', () => {
+              console.log(`Hosting ${lobbyId}!`);
+              setMatchmakingStatus('Waiting for opponent...');
+              setPeer(newPeer);
+              setIsHost(true);
+              
+              const initialState = initGame(isStrategicMode);
+              initialState.players[0].name = "Player 1 (You)";
+              initialState.players[1].name = "Player 2";
+              initialState.mode = "multiplayer";
+              setGameState(initialState);
+
+              newPeer.on('connection', (connection) => {
+                if (conn) {
+                  connection.on('open', () => {
+                    connection.send({ type: 'LOBBY_FULL' });
+                    setTimeout(() => connection.close(), 500);
+                  });
+                  return;
+                }
+
+                console.log("Player connected!");
+                setMatchmakingStatus('Opponent found! Starting...');
+                setConn(connection);
+                setIsWaiting(false);
+
+                connection.on('open', () => {
+                  connection.send({ type: 'gameStateUpdate', state: initialState });
+                });
+
+                connection.on('data', (data: any) => {
+                  handleAction(data);
+                });
+
+                connection.on('close', () => {
+                  alert('Opponent disconnected.');
+                  disconnectPvP();
+                });
+              });
+
+              resolve(true);
+            });
+
+            newPeer.on('error', (err: any) => {
+              console.log(`Failed to host ${lobbyId} (likely taken)`);
+              newPeer.destroy();
+              resolve(false);
+            });
+          } catch (e) {
+            console.error("Peer creation failed", e);
+            resolve(false);
+          }
         });
-      });
-    };
+      };
 
-    // Matchmaking Strategy:
-    // 1. Pick 3 random lobbies to check (fast fail)
-    // 2. If fail, try to host on a random lobby
-    // 3. If host fails (collision), try to host on another random lobby
-    
-    // Generate random permutation of 0..MAX_LOBBIES-1
-    const indices = Array.from({ length: MAX_LOBBIES }, (_, i) => i).sort(() => Math.random() - 0.5);
-    
-    // Try to join first few
-    for (let i = 0; i < 5; i++) {
-      if (await checkLobby(`${LOBBY_PREFIX}${indices[i]}`)) return;
+      // Generate random permutation
+      const indices = Array.from({ length: MAX_LOBBIES }, (_, i) => i).sort(() => Math.random() - 0.5);
+      
+      // Try to join first few
+      for (let i = 0; i < 5; i++) {
+        if (await checkLobby(`${LOBBY_PREFIX}${indices[i]}`)) return;
+      }
+
+      // Try to host on the rest
+      for (let i = 5; i < MAX_LOBBIES; i++) {
+        if (await hostLobby(`${LOBBY_PREFIX}${indices[i]}`)) return;
+      }
+
+      if (!isCancelled) {
+        alert("Unable to find a match. Please try again.");
+        setIsWaiting(false);
+        setIsPvP(false);
+        setMatchmakingStatus('');
+      }
+    } catch (err) {
+      console.error("Matchmaking error:", err);
+      alert(`Matchmaking failed: ${err}`);
+      setIsWaiting(false);
+      setIsPvP(false);
+      setMatchmakingStatus('');
     }
-
-    // Try to host on the rest
-    for (let i = 5; i < MAX_LOBBIES; i++) {
-      if (await hostLobby(`${LOBBY_PREFIX}${indices[i]}`)) return;
-    }
-
-    alert("Unable to find a match. Please try again.");
-    setIsWaiting(false);
-    setIsPvP(false);
 
   }, [cleanupPeer]);
 
@@ -217,12 +250,14 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     cleanupPeer();
     setIsWaiting(false);
     setIsPvP(false);
+    setMatchmakingStatus('');
   }, [cancelSearch, cleanupPeer]);
 
   const disconnectPvP = useCallback(() => {
     cleanupPeer();
     setIsWaiting(false);
     setIsPvP(false);
+    setMatchmakingStatus('');
     setGameState(initGame());
   }, [cleanupPeer]);
 

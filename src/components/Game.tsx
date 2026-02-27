@@ -7,7 +7,7 @@ import { playSound } from '../utils/sound';
 import { ChevronUp, ChevronDown, Users, User, BookOpen } from 'lucide-react';
 
 const Game: React.FC = () => {
-  const { gameState, setGameState, sendAction, isPvP, setIsPvP, isWaiting, playerIndex, startMatchmaking, cancelMatchmaking, disconnectPvP } = useGame();
+  const { gameState, setGameState, sendAction, isPvP, setIsPvP, isWaiting, matchmakingStatus, playerIndex, startMatchmaking, cancelMatchmaking, disconnectPvP } = useGame();
   const [isHandExpanded, setIsHandExpanded] = useState(false);
   const [isPlayerRowExpanded, setIsPlayerRowExpanded] = useState(false);
   const [isOpponentRowExpanded, setIsOpponentRowExpanded] = useState(false);
@@ -141,6 +141,7 @@ const Game: React.FC = () => {
     return (
       <div className="w-full max-w-md mx-auto h-[100dvh] flex flex-col items-center justify-center text-white p-4 font-sans">
         <h2 className="text-2xl font-bold mb-4">Searching for opponent...</h2>
+        {matchmakingStatus && <p className="text-slate-400 mb-4 animate-pulse">{matchmakingStatus}</p>}
         <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-8"></div>
         <button 
           onClick={cancelMatchmaking}
