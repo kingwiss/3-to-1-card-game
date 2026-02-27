@@ -7,26 +7,25 @@ interface GameContextProps {
   gameState: GameState;
   setGameState: React.Dispatch<React.SetStateAction<GameState>>;
   sendAction: (action: any) => void;
-  isMultiplayer: boolean;
-  setIsMultiplayer: (val: boolean) => void;
+  isPvP: boolean;
+  setIsPvP: (val: boolean) => void;
   isWaiting: boolean;
   playerIndex: number;
   startMatchmaking: (isStrategicMode: boolean) => Promise<void>;
   cancelMatchmaking: () => void;
-  disconnectMultiplayer: () => void;
-  isFirebaseReady: boolean; // Kept for interface compatibility but always true
+  disconnectPvP: () => void;
 }
 
 export const GameContext = createContext<GameContextProps | undefined>(undefined);
 
 const LOBBY_PREFIX = 'neural-game-v1-lobby-';
-const MAX_LOBBIES = 10;
+const MAX_LOBBIES = 20; // Increased to reduce collisions
 
 export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [gameState, setGameState] = useState<GameState>(initGame());
   const [peer, setPeer] = useState<Peer | null>(null);
   const [conn, setConn] = useState<DataConnection | null>(null);
-  const [isMultiplayer, setIsMultiplayer] = useState(false);
+  const [isPvP, setIsPvP] = useState(false);
   const [isWaiting, setIsWaiting] = useState(false);
   const [playerIndex, setPlayerIndex] = useState(0);
   const [isHost, setIsHost] = useState(false);
@@ -52,7 +51,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [conn, peer]);
 
   const startMatchmaking = useCallback(async (isStrategicMode: boolean) => {
-    setIsMultiplayer(true);
+    setIsPvP(true);
     setIsWaiting(true);
     setPlayerIndex(0); // Default, will update if matched as P2
     
@@ -63,50 +62,44 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const cancel = () => { isCancelled = true; };
     setCancelSearch(() => cancel);
 
-    // Try to find a lobby or create one
-    const tryConnectToLobby = async (lobbyIndex: number): Promise<boolean> => {
-      if (isCancelled) return true; // Stop searching if cancelled
-
-      const lobbyId = `${LOBBY_PREFIX}${lobbyIndex}`;
-      console.log(`Trying to join lobby: ${lobbyId}`);
+    // Helper to check a specific lobby
+    const checkLobby = async (lobbyId: string): Promise<boolean> => {
+      if (isCancelled) return true;
+      console.log(`Checking lobby: ${lobbyId}`);
 
       return new Promise<boolean>((resolve) => {
-        // Create a temporary peer to check connection
         const tempPeer = new Peer();
         
         tempPeer.on('open', () => {
           const connection = tempPeer.connect(lobbyId);
           
           const timeout = setTimeout(() => {
-            console.log(`Timeout connecting to ${lobbyId}`);
+            console.log(`Timeout/No Host at ${lobbyId}`);
             connection.close();
             tempPeer.destroy();
             resolve(false);
-          }, 2000);
+          }, 1500); // Short timeout for faster scanning
 
           connection.on('open', () => {
             clearTimeout(timeout);
             console.log(`Connected to ${lobbyId}!`);
             
-            // We found a host!
             setPeer(tempPeer);
             setConn(connection);
             setPlayerIndex(1);
             setIsHost(false);
             setIsWaiting(false);
 
-            // Setup listeners
             connection.on('data', (data: any) => {
               if (data.type === 'gameStateUpdate') {
                 const newState = data.state;
-                // Swap names for local view
                 if (newState.players[1].name === "Player 2") {
                      newState.players[1].name = "Player 2 (You)";
                      newState.players[0].name = "Player 1";
                 }
                 setGameState(newState);
               } else if (data.type === 'LOBBY_FULL') {
-                console.log("Lobby full, trying next...");
+                console.log("Lobby full");
                 connection.close();
                 tempPeer.destroy();
                 resolve(false);
@@ -114,11 +107,11 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             });
 
             connection.on('close', () => {
-              alert('Host disconnected.');
-              disconnectMultiplayer();
+              alert('Opponent disconnected.');
+              disconnectPvP();
             });
 
-            resolve(true); // Success
+            resolve(true);
           });
 
           connection.on('error', () => {
@@ -135,21 +128,19 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       });
     };
 
-    const tryCreateLobby = async (lobbyIndex: number): Promise<boolean> => {
+    // Helper to host a lobby
+    const hostLobby = async (lobbyId: string): Promise<boolean> => {
       if (isCancelled) return true;
-
-      const lobbyId = `${LOBBY_PREFIX}${lobbyIndex}`;
-      console.log(`Trying to host lobby: ${lobbyId}`);
+      console.log(`Attempting to host: ${lobbyId}`);
 
       return new Promise<boolean>((resolve) => {
         const newPeer = new Peer(lobbyId);
 
         newPeer.on('open', () => {
-          console.log(`Hosting lobby ${lobbyId}!`);
+          console.log(`Hosting ${lobbyId}!`);
           setPeer(newPeer);
           setIsHost(true);
           
-          // Initialize game state
           const initialState = initGame(isStrategicMode);
           initialState.players[0].name = "Player 1 (You)";
           initialState.players[1].name = "Player 2";
@@ -158,7 +149,6 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
           newPeer.on('connection', (connection) => {
             if (conn) {
-              // Already have a player, reject new ones
               connection.on('open', () => {
                 connection.send({ type: 'LOBBY_FULL' });
                 setTimeout(() => connection.close(), 500);
@@ -171,7 +161,6 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             setIsWaiting(false);
 
             connection.on('open', () => {
-              // Send initial state
               connection.send({ type: 'gameStateUpdate', state: initialState });
             });
 
@@ -181,7 +170,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
             connection.on('close', () => {
               alert('Opponent disconnected.');
-              disconnectMultiplayer();
+              disconnectPvP();
             });
           });
 
@@ -189,27 +178,34 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         });
 
         newPeer.on('error', (err: any) => {
-          console.log(`Failed to host ${lobbyId}:`, err.type);
+          console.log(`Failed to host ${lobbyId} (likely taken)`);
           newPeer.destroy();
           resolve(false);
         });
       });
     };
 
-    // Main matchmaking loop
-    // 1. Try to join existing lobbies
-    for (let i = 0; i < MAX_LOBBIES; i++) {
-      if (await tryConnectToLobby(i)) return;
+    // Matchmaking Strategy:
+    // 1. Pick 3 random lobbies to check (fast fail)
+    // 2. If fail, try to host on a random lobby
+    // 3. If host fails (collision), try to host on another random lobby
+    
+    // Generate random permutation of 0..MAX_LOBBIES-1
+    const indices = Array.from({ length: MAX_LOBBIES }, (_, i) => i).sort(() => Math.random() - 0.5);
+    
+    // Try to join first few
+    for (let i = 0; i < 5; i++) {
+      if (await checkLobby(`${LOBBY_PREFIX}${indices[i]}`)) return;
     }
 
-    // 2. If no lobbies found, try to create one
-    for (let i = 0; i < MAX_LOBBIES; i++) {
-      if (await tryCreateLobby(i)) return;
+    // Try to host on the rest
+    for (let i = 5; i < MAX_LOBBIES; i++) {
+      if (await hostLobby(`${LOBBY_PREFIX}${indices[i]}`)) return;
     }
 
-    alert("Could not find or create a game lobby. Please try again.");
+    alert("Unable to find a match. Please try again.");
     setIsWaiting(false);
-    setIsMultiplayer(false);
+    setIsPvP(false);
 
   }, [cleanupPeer]);
 
@@ -220,41 +216,27 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
     cleanupPeer();
     setIsWaiting(false);
-    setIsMultiplayer(false);
+    setIsPvP(false);
   }, [cancelSearch, cleanupPeer]);
 
-  const disconnectMultiplayer = useCallback(() => {
+  const disconnectPvP = useCallback(() => {
     cleanupPeer();
     setIsWaiting(false);
-    setIsMultiplayer(false);
+    setIsPvP(false);
     setGameState(initGame());
   }, [cleanupPeer]);
 
-  // Centralized action handler (runs on Host)
   const handleAction = useCallback((action: any) => {
     setGameState(prevState => {
       let newState = { ...prevState };
-      
       try {
         switch (action.type) {
-          case "drawCard":
-            newState = drawCard(newState);
-            break;
-          case "addDrawnCardToHand":
-            newState = addDrawnCardToHand(newState);
-            break;
-          case "addDrawnCardToTarget":
-            newState = addDrawnCardToTarget(newState);
-            break;
-          case "playCard":
-            newState = playCard(newState, action.cardId);
-            break;
-          case "endTurn":
-            newState = endTurn(newState);
-            break;
-          case "startNextRound":
-            newState = startNextRound(newState);
-            break;
+          case "drawCard": newState = drawCard(newState); break;
+          case "addDrawnCardToHand": newState = addDrawnCardToHand(newState); break;
+          case "addDrawnCardToTarget": newState = addDrawnCardToTarget(newState); break;
+          case "playCard": newState = playCard(newState, action.cardId); break;
+          case "endTurn": newState = endTurn(newState); break;
+          case "startNextRound": newState = startNextRound(newState); break;
           case "restartGame":
             newState = initGame(newState.isStrategicMode);
             newState.players[0].name = "Player 1 (You)";
@@ -267,26 +249,22 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             newState.players[1].name = "Player 2";
             newState.mode = "multiplayer";
             break;
-          case "endGame":
-            newState = { ...newState, status: "gameOver" };
-            break;
+          case "endGame": newState = { ...newState, status: "gameOver" }; break;
         }
       } catch (e) {
         console.error("Action error", e);
         return prevState;
       }
 
-      // Broadcast new state to peer if we are host
       if (conn && conn.open) {
         conn.send({ type: 'gameStateUpdate', state: newState });
       }
-
       return newState;
     });
-  }, [conn]); // Removed 'peer' dependency to avoid stale closure issues, rely on 'conn' ref if possible or just state
+  }, [conn]);
 
   const sendAction = useCallback((action: any) => {
-    if (!isMultiplayer) return;
+    if (!isPvP) return;
 
     if (isHost) {
       handleAction(action);
@@ -295,21 +273,20 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         conn.send(action);
       }
     }
-  }, [isMultiplayer, isHost, conn, handleAction]);
+  }, [isPvP, isHost, conn, handleAction]);
 
   return (
     <GameContext.Provider value={{ 
       gameState, 
       setGameState, 
       sendAction, 
-      isMultiplayer, 
-      setIsMultiplayer, 
+      isPvP, 
+      setIsPvP, 
       isWaiting, 
       playerIndex,
       startMatchmaking,
       cancelMatchmaking,
-      disconnectMultiplayer,
-      isFirebaseReady: true
+      disconnectPvP
     }}>
       {children}
     </GameContext.Provider>

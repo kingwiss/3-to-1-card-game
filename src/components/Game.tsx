@@ -7,7 +7,7 @@ import { playSound } from '../utils/sound';
 import { ChevronUp, ChevronDown, Users, User, BookOpen } from 'lucide-react';
 
 const Game: React.FC = () => {
-  const { gameState, setGameState, sendAction, isMultiplayer, setIsMultiplayer, isWaiting, playerIndex, startMatchmaking, cancelMatchmaking, disconnectMultiplayer, isFirebaseReady } = useGame();
+  const { gameState, setGameState, sendAction, isPvP, setIsPvP, isWaiting, playerIndex, startMatchmaking, cancelMatchmaking, disconnectPvP } = useGame();
   const [isHandExpanded, setIsHandExpanded] = useState(false);
   const [isPlayerRowExpanded, setIsPlayerRowExpanded] = useState(false);
   const [isOpponentRowExpanded, setIsOpponentRowExpanded] = useState(false);
@@ -25,7 +25,7 @@ const Game: React.FC = () => {
   const handleDrawCard = () => {
     if (status === 'playing' && activePlayerIndex === playerIndex && !hasDrawnCardThisTurn) {
       playSound('draw');
-      if (isMultiplayer) {
+      if (isPvP) {
         sendAction({ type: 'drawCard' });
       } else {
         const newGameState = drawCard(gameState);
@@ -37,7 +37,7 @@ const Game: React.FC = () => {
   const handlePlayCard = (cardId: string) => {
     if (status === 'playing' && activePlayerIndex === playerIndex && hasDrawnCardThisTurn && !drawnCard) {
       playSound('play');
-      if (isMultiplayer) {
+      if (isPvP) {
         sendAction({ type: 'playCard', cardId });
       } else {
         const newGameState = playCard(gameState, cardId);
@@ -48,7 +48,7 @@ const Game: React.FC = () => {
 
   const handleEndTurn = () => {
     if (status === 'playing' && activePlayerIndex === playerIndex && gameState.isStrategicMode) {
-      if (isMultiplayer) {
+      if (isPvP) {
         sendAction({ type: 'endTurn' });
       } else {
         setGameState(endTurn(gameState));
@@ -57,7 +57,7 @@ const Game: React.FC = () => {
   };
 
   const handleRestart = () => {
-    if (isMultiplayer) {
+    if (isPvP) {
       sendAction({ type: 'restartGame' });
     } else {
       setGameState(initGame(gameState.isStrategicMode));
@@ -65,7 +65,7 @@ const Game: React.FC = () => {
   };
 
   const handleEndGame = () => {
-    if (isMultiplayer) {
+    if (isPvP) {
       sendAction({ type: 'endGame' });
     } else {
       setGameState({ ...gameState, status: 'gameOver' });
@@ -73,20 +73,20 @@ const Game: React.FC = () => {
   };
 
   useEffect(() => {
-    if (!isMultiplayer && activePlayerIndex === 1 && status === 'playing') {
+    if (!isPvP && activePlayerIndex === 1 && status === 'playing') {
       const timer = setTimeout(() => {
         playSound('opponent');
         setGameState(prevState => playAITurn(prevState));
       }, 1000);
       return () => clearTimeout(timer);
     }
-  }, [activePlayerIndex, status, setGameState, isMultiplayer]);
+  }, [activePlayerIndex, status, setGameState, isPvP]);
 
   useEffect(() => {
     if (drawnCard && !pendingTargetDecision && activePlayerIndex === playerIndex) {
       const timer = setTimeout(() => {
         playSound('draw');
-        if (isMultiplayer) {
+        if (isPvP) {
           sendAction({ type: 'addDrawnCardToHand' });
         } else {
           setGameState(prevState => addDrawnCardToHand(prevState));
@@ -94,7 +94,7 @@ const Game: React.FC = () => {
       }, 1000);
       return () => clearTimeout(timer);
     }
-  }, [drawnCard, pendingTargetDecision, setGameState, isMultiplayer, activePlayerIndex, playerIndex, sendAction]);
+  }, [drawnCard, pendingTargetDecision, setGameState, isPvP, activePlayerIndex, playerIndex, sendAction]);
 
   useEffect(() => {
     if (!hasDrawnCardThisTurn) {
@@ -120,7 +120,7 @@ const Game: React.FC = () => {
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
-    if (!isMultiplayer && activePlayerIndex === 0 && hasDrawnCardThisTurn && !drawnCard && !pendingTargetDecision && status === 'playing') {
+    if (!isPvP && activePlayerIndex === 0 && hasDrawnCardThisTurn && !drawnCard && !pendingTargetDecision && status === 'playing') {
       timer = setTimeout(() => {
         setGameState(prevState => {
           if (prevState.activePlayerIndex === 0 && prevState.hasDrawnCardThisTurn && !prevState.drawnCard && !prevState.pendingTargetDecision && prevState.status === 'playing') {
@@ -135,7 +135,7 @@ const Game: React.FC = () => {
       }, 10000);
     }
     return () => clearTimeout(timer);
-  }, [activePlayerIndex, hasDrawnCardThisTurn, drawnCard, pendingTargetDecision, status, setGameState, gameState.playsThisTurn, isMultiplayer]);
+  }, [activePlayerIndex, hasDrawnCardThisTurn, drawnCard, pendingTargetDecision, status, setGameState, gameState.playsThisTurn, isPvP]);
 
   if (isWaiting) {
     return (
@@ -163,7 +163,7 @@ const Game: React.FC = () => {
                 <h3 className="text-6xl font-bold mb-4">{winnerId === player.id ? 'You!' : 'Opponent'}</h3>
                 <button 
                   onClick={() => {
-                    if (isMultiplayer) {
+                    if (isPvP) {
                       sendAction({ type: 'startNextRound' });
                     } else {
                       setGameState(startNextRound(gameState));
@@ -468,7 +468,7 @@ const Game: React.FC = () => {
         <button 
           onClick={() => {
             const newMode = !gameState.isStrategicMode;
-            if (isMultiplayer) {
+            if (isPvP) {
               sendAction({ type: 'toggleStrategicMode', isStrategicMode: newMode });
             } else {
               setGameState(initGame(newMode));
@@ -510,19 +510,19 @@ const Game: React.FC = () => {
               
               <button 
                 onClick={() => {
-                  if (isMultiplayer) {
+                  if (isPvP) {
                     if (window.confirm("Disconnect from current game?")) {
-                      disconnectMultiplayer();
+                      disconnectPvP();
                     }
                   } else {
                     startMatchmaking(gameState.isStrategicMode);
                   }
                   setIsMenuOpen(false);
                 }}
-                className={`w-12 h-12 border rounded-full flex items-center justify-center transition-colors shadow-lg ${isMultiplayer ? 'bg-blue-600 border-blue-500 text-white hover:bg-blue-500' : 'bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white'}`}
-                title={isMultiplayer ? 'Disconnect' : 'Play vs Real User'}
+                className={`w-12 h-12 border rounded-full flex items-center justify-center transition-colors shadow-lg ${isPvP ? 'bg-blue-600 border-blue-500 text-white hover:bg-blue-500' : 'bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white'}`}
+                title={isPvP ? 'Disconnect' : 'Play vs Real User'}
               >
-                {isMultiplayer ? <Users size={20} /> : <User size={20} />}
+                {isPvP ? <Users size={20} /> : <User size={20} />}
               </button>
             </motion.div>
           )}
