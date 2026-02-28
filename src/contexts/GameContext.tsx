@@ -19,7 +19,7 @@ interface GameContextProps {
 
 export const GameContext = createContext<GameContextProps | undefined>(undefined);
 
-const LOBBY_PREFIX = 'neural-game-v1-lobby-';
+const getLobbyPrefix = (isStrategic: boolean) => isStrategic ? 'neural-game-v1-strat-' : 'neural-game-v1-std-';
 const MAX_LOBBIES = 50;
 
 export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -94,7 +94,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       const tryLobby = async (lobbyIndex: number): Promise<'HOSTING' | 'CONNECTED' | 'NEXT'> => {
         if (isCancelled) return 'NEXT';
-        const lobbyId = `${LOBBY_PREFIX}${lobbyIndex}`;
+        const lobbyId = `${getLobbyPrefix(isStrategicMode)}${lobbyIndex}`;
         setMatchmakingStatus(`Checking Room ${lobbyIndex + 1}...`);
         
         return new Promise<'HOSTING' | 'CONNECTED' | 'NEXT'>((resolve) => {

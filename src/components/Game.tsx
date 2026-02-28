@@ -522,7 +522,13 @@ const Game: React.FC = () => {
           onClick={() => {
             const newMode = !gameState.isStrategicMode;
             if (isPvP) {
-              sendAction({ type: 'toggleStrategicMode', isStrategicMode: newMode });
+              if (window.confirm("Changing the game mode will disconnect you from your current opponent. Do you want to proceed?")) {
+                disconnectPvP();
+                setGameState(initGame(newMode));
+                startMatchmaking(newMode);
+              } else {
+                return; // Cancel the toggle
+              }
             } else {
               setGameState(initGame(newMode));
             }
