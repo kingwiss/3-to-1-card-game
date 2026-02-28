@@ -256,13 +256,19 @@ const Game: React.FC = () => {
           <button onClick={handleDrawCard} className="relative w-10 h-14 md:w-14 md:h-20" disabled={hasDrawnCardThisTurn || activePlayerIndex !== playerIndex}>
             <div className="absolute top-0 left-0 w-full h-full rounded-lg bg-slate-700 border-2 border-slate-500 transform -rotate-6"></div>
             <div className="absolute top-0 left-0 w-full h-full rounded-lg bg-slate-700 border-2 border-slate-500 transform rotate-6"></div>
-            <div className="absolute top-0 left-0 w-full h-full rounded-lg bg-slate-800 border-2 border-slate-600 flex items-center justify-center text-sm md:text-base font-bold cursor-pointer text-center leading-tight">1 to 3</div>
+            <div className={`absolute top-0 left-0 w-full h-full rounded-lg bg-slate-800 border-2 flex items-center justify-center text-sm md:text-base font-bold cursor-pointer text-center leading-tight transition-colors ${activePlayerIndex === playerIndex && !hasDrawnCardThisTurn ? 'border-green-400 shadow-[0_0_15px_rgba(74,222,128,0.5)]' : 'border-slate-600'}`}>
+              1 to 3
+            </div>
           </button>
           <p className="text-xs font-semibold">{deck.length} left</p>
         </div>
 
         {/* Target */}
         <div className="flex flex-col items-center gap-2 relative flex-1 mx-2 min-w-0">
+          {/* Turn Indicator */}
+          <div className={`px-4 py-1 rounded-full text-xs font-bold shadow-lg transition-all duration-300 ${activePlayerIndex === playerIndex ? 'bg-green-500 text-white animate-pulse' : 'bg-red-500 text-white'}`}>
+            {activePlayerIndex === playerIndex ? "YOUR TURN" : "OPPONENT'S TURN"}
+          </div>
           <div className="relative w-28 h-28 flex items-center justify-center floating">
             {/* Bubble Background */}
             <div className="absolute inset-0 rounded-full bubble-container overflow-hidden z-0">
@@ -430,7 +436,7 @@ const Game: React.FC = () => {
                   <button 
                     onClick={() => {
                       playSound('play');
-                      if (isMultiplayer) {
+                      if (isPvP) {
                         sendAction({ type: 'addDrawnCardToTarget' });
                       } else {
                         setGameState(addDrawnCardToTarget(gameState));
@@ -443,7 +449,7 @@ const Game: React.FC = () => {
                   <button 
                     onClick={() => {
                       playSound('draw');
-                      if (isMultiplayer) {
+                      if (isPvP) {
                         sendAction({ type: 'addDrawnCardToHand' });
                       } else {
                         setGameState(addDrawnCardToHand(gameState));

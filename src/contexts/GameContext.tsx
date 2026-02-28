@@ -302,7 +302,9 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return prevState;
       }
 
-      // Broadcast the NEW state to the peer
+      // We must broadcast the state. Since setGameState updater is pure,
+      // we can use a ref or just send it here, but sending it here is the
+      // only way to get the exact newState. We use setTimeout to avoid blocking.
       if (conn && conn.open) {
         setTimeout(() => {
             try {
@@ -310,7 +312,6 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             } catch(e) { console.error("Send error", e); }
         }, 0);
       }
-      
       return newState;
     });
   }, [isPvP, conn]);
