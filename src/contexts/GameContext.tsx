@@ -20,7 +20,7 @@ interface GameContextProps {
 export const GameContext = createContext<GameContextProps | undefined>(undefined);
 
 const LOBBY_PREFIX = 'neural-game-v1-lobby-';
-const MAX_LOBBIES = 20;
+const MAX_LOBBIES = 50;
 
 export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [gameState, setGameState] = useState<GameState>(initGame());
@@ -113,10 +113,9 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 connection.on('data', (data: any) => {
                   if (data.type === 'gameStateUpdate') {
                     const newState = data.state;
-                    if (newState.players[1].name === "Player 2") {
-                        newState.players[1].name = "Player 2 (You)";
-                        newState.players[0].name = "Player 1";
-                    }
+                    // Ensure names are clean for local rendering logic
+                    newState.players[0].name = "Player 1";
+                    newState.players[1].name = "Player 2";
                     setGameState(newState);
                   } else if (data.type === 'LOBBY_FULL') {
                     connection.close();
@@ -167,7 +166,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               setIsHost(true);
               
               const initialState = initGame(isStrategicMode);
-              initialState.players[0].name = "Player 1 (You)";
+              initialState.players[0].name = "Player 1";
               initialState.players[1].name = "Player 2";
               initialState.mode = "multiplayer";
               setGameState(initialState);
@@ -217,14 +216,16 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // 7. Execution Strategy
       const indices = Array.from({ length: MAX_LOBBIES }, (_, i) => i).sort(() => Math.random() - 0.5);
       
-      for (let i = 0; i < 3; i++) {
+      // Try to join 10 random lobbies
+      for (let i = 0; i < 10; i++) {
         if (await checkLobby(`${LOBBY_PREFIX}${indices[i]}`)) return;
-        await wait(500);
+        await wait(200);
       }
 
-      for (let i = 3; i < 6; i++) {
+      // Try to host on 5 random lobbies
+      for (let i = 10; i < 15; i++) {
         if (await hostLobby(`${LOBBY_PREFIX}${indices[i]}`)) return;
-        await wait(500);
+        await wait(200);
       }
 
       if (!isCancelled) {

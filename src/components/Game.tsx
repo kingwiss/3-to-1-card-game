@@ -327,7 +327,7 @@ const Game: React.FC = () => {
       <div className="w-full flex flex-col items-center gap-1 pb-10">
         <div className="flex justify-between w-full px-4 items-center">
           <div className="text-base font-bold w-20 flex items-center gap-2">
-            You
+            {isPvP ? `${player.name} (You)` : 'You'}
             {player.cleanSlate && (
               <span className="text-[10px] bg-blue-500/80 text-white px-1.5 py-0.5 rounded-full whitespace-nowrap">Clean Slate</span>
             )}
