@@ -356,13 +356,13 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           case "startNextRound": newState = startNextRound(newState); break;
           case "restartGame":
             newState = initGame(newState.isStrategicMode);
-            newState.players[0].name = "Player 1 (You)";
+            newState.players[0].name = "Player 1";
             newState.players[1].name = "Player 2";
             newState.mode = "multiplayer";
             break;
           case "toggleStrategicMode":
             newState = initGame(action.isStrategicMode);
-            newState.players[0].name = "Player 1 (You)";
+            newState.players[0].name = "Player 1";
             newState.players[1].name = "Player 2";
             newState.mode = "multiplayer";
             break;
@@ -373,8 +373,13 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return prevState;
       }
 
+      // Send update asynchronously to avoid blocking render
       if (conn && conn.open) {
-        conn.send({ type: 'gameStateUpdate', state: newState });
+        setTimeout(() => {
+            try {
+                conn.send({ type: 'gameStateUpdate', state: newState });
+            } catch(e) { console.error("Send error", e); }
+        }, 0);
       }
       return newState;
     });

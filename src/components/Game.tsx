@@ -120,22 +120,32 @@ const Game: React.FC = () => {
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
-    if (!isPvP && activePlayerIndex === 0 && hasDrawnCardThisTurn && !drawnCard && !pendingTargetDecision && status === 'playing') {
+    const isMyTurn = activePlayerIndex === playerIndex;
+
+    if (isMyTurn && hasDrawnCardThisTurn && !drawnCard && !pendingTargetDecision && status === 'playing') {
       timer = setTimeout(() => {
-        setGameState(prevState => {
-          if (prevState.activePlayerIndex === 0 && prevState.hasDrawnCardThisTurn && !prevState.drawnCard && !prevState.pendingTargetDecision && prevState.status === 'playing') {
-            const bestCard = findBestCardToPlay(prevState.players[0], prevState.targetNumber);
-            if (bestCard) {
-              playSound('play');
-              return playCard(prevState, bestCard.id);
-            }
-          }
-          return prevState;
-        });
+        // Auto-play logic for 10s rule
+        const currentPlayer = players[activePlayerIndex];
+        const bestCard = findBestCardToPlay(currentPlayer, targetNumber);
+        
+        if (bestCard) {
+           playSound('play');
+           if (isPvP) {
+             sendAction({ type: 'playCard', cardId: bestCard.id });
+           } else {
+             setGameState(prevState => playCard(prevState, bestCard.id));
+           }
+        } else {
+           if (isPvP) {
+             sendAction({ type: 'endTurn' });
+           } else {
+             setGameState(prevState => endTurn(prevState));
+           }
+        }
       }, 10000);
     }
     return () => clearTimeout(timer);
-  }, [activePlayerIndex, hasDrawnCardThisTurn, drawnCard, pendingTargetDecision, status, setGameState, gameState.playsThisTurn, isPvP]);
+  }, [activePlayerIndex, hasDrawnCardThisTurn, drawnCard, pendingTargetDecision, status, isPvP, playerIndex, sendAction, players, targetNumber]);
 
   if (isWaiting) {
     return (
