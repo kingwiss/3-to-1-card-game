@@ -466,7 +466,7 @@ const Game: React.FC = () => {
             transition={{ duration: 0.3, ease: 'easeOut' }}
           >
             <div className="flex flex-col items-center gap-4">
-              <Card card={drawnCard} />
+              <Card card={drawnCard} isHidden={activePlayerIndex !== playerIndex} />
               {pendingTargetDecision && activePlayerIndex === playerIndex && (
                 <div className="flex gap-2 bg-slate-800 p-2 rounded-lg border-2 border-slate-600 shadow-xl">
                   <button 
