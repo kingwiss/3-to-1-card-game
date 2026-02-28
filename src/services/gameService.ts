@@ -277,58 +277,6 @@ export const findBestCardToPlay = (player: Player, targetNumber: number): Card |
   return null;
 };
 
-export const playAITurn = (gameState: GameState): GameState => {
-  let newState = { ...gameState };
-  const aiIndex = newState.activePlayerIndex;
-
-  // 1. Draw a card
-  newState = drawCard(newState);
-  
-  if (newState.pendingTargetDecision && newState.drawnCard) {
-    // AI simple logic: if it helps to increase target, do it.
-    // For now, AI just adds to hand.
-    newState = addDrawnCardToHand(newState);
-  } else {
-    newState = addDrawnCardToHand(newState);
-  }
-
-  // If drawing a card immediately ended the turn (no eligible moves), we are done.
-  if (newState.activePlayerIndex !== aiIndex) {
-    return newState;
-  }
-
-  // In strategic mode, AI might randomly decide to stop playing cards
-  const shouldPlayFirstCard = !newState.isStrategicMode || Math.random() > 0.2;
-  
-  if (shouldPlayFirstCard) {
-    // 2. Attempt first play
-    let bestCard = findBestCardToPlay(newState.players[aiIndex], newState.targetNumber);
-    if (bestCard) {
-      newState = playCard(newState, bestCard.id);
-    }
-
-    // If the first play ended the turn, we are done.
-    if (newState.activePlayerIndex !== aiIndex) {
-      return newState;
-    }
-
-    const shouldPlaySecondCard = !newState.isStrategicMode || Math.random() > 0.5;
-    if (shouldPlaySecondCard) {
-      // 3. Attempt second play
-      bestCard = findBestCardToPlay(newState.players[aiIndex], newState.targetNumber);
-      if (bestCard) {
-        newState = playCard(newState, bestCard.id);
-      }
-    }
-  }
-  
-  // 4. If the turn still hasn't ended (e.g., AI had no moves or only one), end it now.
-  if (newState.activePlayerIndex === aiIndex) {
-    newState = endTurn(newState);
-  }
-
-  return newState;
-};
 
 export const startNextRound = (gameState: GameState): GameState => {
   const { players, round } = gameState;

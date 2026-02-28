@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useGame } from '../hooks/useGame';
-import { drawCard, playCard, initGame, playAITurn, addDrawnCardToHand, addDrawnCardToTarget, startNextRound, endTurn, findBestCardToPlay } from '../services/gameService';
+import { drawCard, playCard, initGame, addDrawnCardToHand, addDrawnCardToTarget, startNextRound, endTurn, findBestCardToPlay } from '../services/gameService';
 import Card from './Card';
 import { motion, AnimatePresence } from 'framer-motion';
 import { playSound } from '../utils/sound';
@@ -74,13 +74,49 @@ const Game: React.FC = () => {
 
   useEffect(() => {
     if (!isPvP && activePlayerIndex === 1 && status === 'playing') {
-      const timer = setTimeout(() => {
-        playSound('opponent');
-        setGameState(prevState => playAITurn(prevState));
-      }, 1000);
+      let timer: NodeJS.Timeout;
+
+      if (!hasDrawnCardThisTurn) {
+        timer = setTimeout(() => {
+          playSound('draw');
+          setGameState(prevState => drawCard(prevState));
+        }, 1000);
+      } else if (drawnCard) {
+        timer = setTimeout(() => {
+          playSound('draw');
+          setGameState(prevState => {
+            if (prevState.pendingTargetDecision) {
+              // Simple AI: always add to hand for now
+              return addDrawnCardToHand(prevState);
+            } else {
+              return addDrawnCardToHand(prevState);
+            }
+          });
+        }, 1000);
+      } else {
+        timer = setTimeout(() => {
+          const aiPlayer = players[1];
+          
+          if (gameState.isStrategicMode && gameState.playsThisTurn > 0) {
+            if (Math.random() < 0.3) {
+              setGameState(prevState => endTurn(prevState));
+              return;
+            }
+          }
+
+          const bestCard = findBestCardToPlay(aiPlayer, targetNumber);
+          if (bestCard) {
+            playSound('play');
+            setGameState(prevState => playCard(prevState, bestCard.id));
+          } else {
+            setGameState(prevState => endTurn(prevState));
+          }
+        }, 1000);
+      }
+
       return () => clearTimeout(timer);
     }
-  }, [activePlayerIndex, status, setGameState, isPvP]);
+  }, [activePlayerIndex, status, setGameState, isPvP, hasDrawnCardThisTurn, drawnCard, pendingTargetDecision, players, targetNumber, gameState.isStrategicMode, gameState.playsThisTurn]);
 
   useEffect(() => {
     if (drawnCard && !pendingTargetDecision && activePlayerIndex === playerIndex) {
