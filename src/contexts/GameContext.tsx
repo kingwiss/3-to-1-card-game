@@ -20,7 +20,7 @@ interface GameContextProps {
 export const GameContext = createContext<GameContextProps | undefined>(undefined);
 
 const LOBBY_PREFIX = 'neural-game-v1-lobby-';
-const MAX_LOBBIES = 50;
+const MAX_LOBBIES = 10;
 
 export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [gameState, setGameState] = useState<GameState>(initGame());
@@ -150,82 +150,167 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         });
       };
 
-      // 6. Helper to host
-      const hostLobby = async (lobbyId: string): Promise<boolean> => {
-        if (isCancelled) return true;
-        setMatchmakingStatus(`Creating lobby...`);
+      // 5. Strategy: Deterministic "Host or Join"
+      // We iterate through lobby IDs. For each ID, we try to HOST it.
+      // If we can host, we wait for a player.
+      // If we can't host (ID taken), we try to JOIN it.
+      // If we can't join (Full/Timeout), we move to the next ID.
+      
+      const tryLobby = async (lobbyIndex: number): Promise<'HOSTING' | 'CONNECTED' | 'NEXT'> => {
+        if (isCancelled) return 'NEXT';
+        const lobbyId = `${LOBBY_PREFIX}${lobbyIndex}`;
+        setMatchmakingStatus(`Checking Room ${lobbyIndex + 1}...`);
         
-        return new Promise<boolean>((resolve) => {
+        return new Promise<'HOSTING' | 'CONNECTED' | 'NEXT'>((resolve) => {
+          // 1. Try to HOST
+          let hostPeer: Peer | null = null;
           try {
-            const newPeer = new PeerClass(lobbyId);
-
-            newPeer.on('open', () => {
-              console.log(`Hosting ${lobbyId}!`);
-              setMatchmakingStatus('Waiting for opponent...');
-              setPeer(newPeer);
-              setIsHost(true);
-              
-              const initialState = initGame(isStrategicMode);
-              initialState.players[0].name = "Player 1";
-              initialState.players[1].name = "Player 2";
-              initialState.mode = "multiplayer";
-              setGameState(initialState);
-
-              newPeer.on('connection', (connection) => {
-                if (conn) {
-                  connection.on('open', () => {
-                    connection.send({ type: 'LOBBY_FULL' });
-                    setTimeout(() => connection.close(), 500);
-                  });
-                  return;
-                }
-
-                console.log("Player connected!");
-                setMatchmakingStatus('Opponent found! Starting...');
-                setConn(connection);
-                setIsWaiting(false);
-
-                connection.on('open', () => {
-                  connection.send({ type: 'gameStateUpdate', state: initialState });
-                });
-
-                connection.on('data', (data: any) => {
-                  handleAction(data);
-                });
-
-                connection.on('close', () => {
-                  alert('Opponent disconnected.');
-                  disconnectPvP();
-                });
-              });
-
-              resolve(true);
-            });
-
-            newPeer.on('error', () => {
-              newPeer.destroy();
-              resolve(false);
-            });
+            hostPeer = new PeerClass(lobbyId, { debug: 1 });
           } catch (e) {
             console.error(e);
-            resolve(false);
+            resolve('NEXT');
+            return;
           }
+
+          if (!hostPeer) { resolve('NEXT'); return; }
+
+          let isResolved = false;
+          
+          // If we successfully open as host, we stay here
+          hostPeer.on('open', () => {
+            if (isResolved || isCancelled) { hostPeer?.destroy(); return; }
+            isResolved = true;
+            
+            console.log(`Hosting on ${lobbyId}`);
+            setMatchmakingStatus('Waiting for opponent...');
+            setPeer(hostPeer);
+            setIsHost(true);
+            
+            const initialState = initGame(isStrategicMode);
+            initialState.players[0].name = "Player 1";
+            initialState.players[1].name = "Player 2";
+            initialState.mode = "multiplayer";
+            setGameState(initialState);
+
+            hostPeer.on('connection', (connection) => {
+              // If we already have a connection, reject new ones
+              if (conn && conn.open) {
+                 connection.on('open', () => {
+                    connection.send({ type: 'LOBBY_FULL' });
+                    setTimeout(() => connection.close(), 500);
+                 });
+                 return;
+              }
+              
+              // Accept connection
+              console.log("Player connected!");
+              setMatchmakingStatus('Opponent found! Starting...');
+              setConn(connection);
+              setIsWaiting(false);
+
+              connection.on('open', () => {
+                connection.send({ type: 'gameStateUpdate', state: initialState });
+              });
+
+              connection.on('data', (data: any) => {
+                handleAction(data);
+              });
+
+              connection.on('close', () => {
+                alert('Opponent disconnected.');
+                disconnectPvP();
+              });
+            });
+
+            resolve('HOSTING');
+          });
+
+          // If error (likely ID taken), we try to JOIN
+          hostPeer.on('error', (err: any) => {
+            if (isResolved) return;
+            isResolved = true;
+            hostPeer?.destroy(); // Cleanup failed host attempt
+
+            if (err.type === 'unavailable-id') {
+              console.log(`${lobbyId} is taken. Trying to join...`);
+              // 2. Try to JOIN
+              try {
+                const clientPeer = new PeerClass(undefined, { debug: 1 });
+                
+                clientPeer.on('open', () => {
+                  const connection = clientPeer.connect(lobbyId);
+                  
+                  // Timeout if host doesn't answer
+                  const timeout = setTimeout(() => {
+                    console.log(`Timeout joining ${lobbyId}`);
+                    connection.close();
+                    clientPeer.destroy();
+                    resolve('NEXT');
+                  }, 2000);
+
+                  connection.on('open', () => {
+                    clearTimeout(timeout);
+                    console.log(`Connected to ${lobbyId}`);
+                    setMatchmakingStatus('Connected! Starting game...');
+                    
+                    setPeer(clientPeer);
+                    setConn(connection);
+                    setPlayerIndex(1);
+                    setIsHost(false);
+                    setIsWaiting(false);
+
+                    connection.on('data', (data: any) => {
+                      if (data.type === 'gameStateUpdate') {
+                        const newState = data.state;
+                        newState.players[0].name = "Player 1";
+                        newState.players[1].name = "Player 2";
+                        setGameState(newState);
+                      } else if (data.type === 'LOBBY_FULL') {
+                        console.log("Lobby full");
+                        connection.close();
+                        clientPeer.destroy();
+                        resolve('NEXT'); // Move to next lobby
+                      }
+                    });
+
+                    connection.on('close', () => {
+                      alert('Opponent disconnected.');
+                      disconnectPvP();
+                    });
+
+                    resolve('CONNECTED');
+                  });
+
+                  connection.on('error', () => {
+                    clearTimeout(timeout);
+                    clientPeer.destroy();
+                    resolve('NEXT');
+                  });
+                });
+
+                clientPeer.on('error', () => {
+                  resolve('NEXT');
+                });
+
+              } catch (e) {
+                resolve('NEXT');
+              }
+            } else {
+              // Some other error
+              console.error("Host error:", err);
+              resolve('NEXT');
+            }
+          });
         });
       };
 
-      // 7. Execution Strategy
-      const indices = Array.from({ length: MAX_LOBBIES }, (_, i) => i).sort(() => Math.random() - 0.5);
-      
-      // Try to join 10 random lobbies
-      for (let i = 0; i < 10; i++) {
-        if (await checkLobby(`${LOBBY_PREFIX}${indices[i]}`)) return;
-        await wait(200);
-      }
-
-      // Try to host on 5 random lobbies
-      for (let i = 10; i < 15; i++) {
-        if (await hostLobby(`${LOBBY_PREFIX}${indices[i]}`)) return;
-        await wait(200);
+      // Execute Strategy
+      for (let i = 0; i < MAX_LOBBIES; i++) {
+        const result = await tryLobby(i);
+        if (result === 'HOSTING' || result === 'CONNECTED') {
+          return; // Stop searching, we are settled
+        }
+        await wait(100); // Small delay between attempts
       }
 
       if (!isCancelled) {
