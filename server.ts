@@ -37,9 +37,11 @@ app.post('/api/create-checkout-session', async (req, res) => {
     }
 
     // Use the provided price ID or default to a test price if not provided
-    const stripePriceId = priceId || process.env.STRIPE_PRICE_ID;
+    // Fallback to the known live price ID if env var is missing
+    const stripePriceId = priceId || process.env.STRIPE_PRICE_ID || 'price_1T6FxvG32OfZ6Beq7QAa48cs';
     
     if (!stripePriceId) {
+      console.error('STRIPE_PRICE_ID is missing');
       return res.status(500).json({ error: 'STRIPE_PRICE_ID is not configured' });
     }
 

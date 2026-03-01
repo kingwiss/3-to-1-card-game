@@ -28,13 +28,21 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose }) => {
         }),
       });
 
-      const { url } = await response.json();
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create checkout session');
+      }
+
+      const { url } = data;
       if (url) {
         window.location.href = url;
+      } else {
+        throw new Error('No checkout URL returned');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating checkout session:', error);
-      alert('Failed to start checkout process.');
+      alert(`Failed to start checkout process: ${error.message}`);
     }
   };
 
