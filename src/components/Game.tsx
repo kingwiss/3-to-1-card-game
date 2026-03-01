@@ -638,7 +638,7 @@ const Game: React.FC = () => {
                     <div className="relative">
                       <button
                         onClick={() => setIsColorPickerOpen(!isColorPickerOpen)}
-                        className="w-12 h-12 rounded-full shadow-lg flex items-center justify-center bg-gradient-to-tr from-red-500 via-green-500 to-blue-500 text-white hover:scale-110 transition-transform"
+                        className="w-12 h-12 rounded-full shadow-lg flex items-center justify-center bg-gradient-to-tr from-red-500 via-green-500 to-blue-500 text-white hover:scale-110 transition-transform z-50 relative"
                         title="Change Theme"
                       >
                         <Palette size={20} />
@@ -646,36 +646,47 @@ const Game: React.FC = () => {
                       
                       <AnimatePresence>
                         {isColorPickerOpen && (
-                          <motion.div
-                            initial={{ width: 0, opacity: 0 }}
-                            animate={{ width: 'auto', opacity: 1 }}
-                            exit={{ width: 0, opacity: 0 }}
-                            className="absolute left-14 bottom-0 flex gap-2 bg-black/50 backdrop-blur-md p-2 rounded-full overflow-x-auto max-w-[200px] md:max-w-[300px] no-scrollbar scroll-smooth z-50"
-                          >
-                            {['slate', 'blue', 'red', 'emerald', 'purple', 'orange', 'pink', 'cyan'].map((color) => (
-                              <motion.button
-                                key={color}
-                                whileHover={{ scale: 1.2 }}
-                                whileTap={{ scale: 0.9 }}
-                                onClick={() => {
-                                  setThemeColor(color);
-                                  // Keep picker open for multiple selections if desired, or close it
-                                }}
-                                className={`w-8 h-8 rounded-full border-2 flex-shrink-0 ${themeColor === color ? 'border-white' : 'border-transparent'}`}
-                                style={{
-                                  backgroundColor: 
-                                    color === 'slate' ? '#64748b' :
-                                    color === 'blue' ? '#3b82f6' :
-                                    color === 'red' ? '#ef4444' :
-                                    color === 'emerald' ? '#10b981' :
-                                    color === 'purple' ? '#a855f7' :
-                                    color === 'orange' ? '#f97316' :
-                                    color === 'pink' ? '#ec4899' :
-                                    '#06b6d4'
-                                }}
-                              />
-                            ))}
-                          </motion.div>
+                          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-0 h-0 z-40">
+                            {['slate', 'blue', 'red', 'emerald', 'purple', 'orange', 'pink', 'cyan'].map((color, index) => {
+                              const totalColors = 8;
+                              const angle = (index * 360) / totalColors;
+                              const radius = 60; // Distance from center
+                              const x = Math.cos((angle * Math.PI) / 180) * radius;
+                              const y = Math.sin((angle * Math.PI) / 180) * radius;
+
+                              return (
+                                <motion.button
+                                  key={color}
+                                  initial={{ opacity: 0, x: 0, y: 0, scale: 0 }}
+                                  animate={{ opacity: 1, x, y, scale: 1 }}
+                                  exit={{ opacity: 0, x: 0, y: 0, scale: 0 }}
+                                  transition={{ type: "spring", stiffness: 300, damping: 20, delay: index * 0.03 }}
+                                  whileHover={{ scale: 1.2 }}
+                                  whileTap={{ scale: 0.9 }}
+                                  onClick={() => {
+                                    if (isPremium) {
+                                      playSound('tick');
+                                    }
+                                    setThemeColor(color);
+                                  }}
+                                  className={`absolute w-10 h-10 -ml-5 -mt-5 rounded-full border-2 shadow-lg flex items-center justify-center ${themeColor === color ? 'border-white scale-110' : 'border-transparent'}`}
+                                  style={{
+                                    backgroundColor: 
+                                      color === 'slate' ? '#64748b' :
+                                      color === 'blue' ? '#3b82f6' :
+                                      color === 'red' ? '#ef4444' :
+                                      color === 'emerald' ? '#10b981' :
+                                      color === 'purple' ? '#a855f7' :
+                                      color === 'orange' ? '#f97316' :
+                                      color === 'pink' ? '#ec4899' :
+                                      '#06b6d4'
+                                  }}
+                                >
+                                  {themeColor === color && <div className="w-2 h-2 bg-white rounded-full" />}
+                                </motion.button>
+                              );
+                            })}
+                          </div>
                         )}
                       </AnimatePresence>
                     </div>

@@ -1,6 +1,6 @@
 let audioCtx: AudioContext | null = null;
 
-export const playSound = (type: 'draw' | 'play' | 'sabotage' | 'limitLift' | 'win' | 'lose' | 'opponent') => {
+export const playSound = (type: 'draw' | 'play' | 'sabotage' | 'limitLift' | 'win' | 'lose' | 'opponent' | 'tick') => {
   if (!audioCtx) {
     audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
   }
@@ -16,7 +16,15 @@ export const playSound = (type: 'draw' | 'play' | 'sabotage' | 'limitLift' | 'wi
   
   const now = audioCtx.currentTime;
   
-  if (type === 'draw') {
+  if (type === 'tick') {
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(800, now);
+    osc.frequency.exponentialRampToValueAtTime(100, now + 0.05);
+    gainNode.gain.setValueAtTime(0.05, now);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+    osc.start(now);
+    osc.stop(now + 0.05);
+  } else if (type === 'draw') {
     osc.type = 'sine';
     osc.frequency.setValueAtTime(400, now);
     osc.frequency.exponentialRampToValueAtTime(600, now + 0.1);
