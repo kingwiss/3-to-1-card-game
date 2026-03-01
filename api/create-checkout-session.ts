@@ -1,25 +1,18 @@
 import Stripe from 'stripe';
 
-// We obfuscate the key to prevent GitHub Secret Scanning from blocking the commit
-// while still allowing the app to work out of the box without manual env config.
-const _sk1 = 'sk_live_51RbXymG32OfZ6Beq';
-const _sk2 = 'XCmVIuNyw0kJDoc3CBn8qRCTF0kXIwGgSI02w3POaOwwWlMFkdgCYyjHO9VdMeiHNq8dQdkX00VBNHzXcR';
-const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || (_sk1 + _sk2);
-const STRIPE_PRICE_ID = process.env.STRIPE_PRICE_ID || 'price_1T6FxvG32OfZ6Beq7QAa48cs';
-
-if (!STRIPE_SECRET_KEY) {
-  console.error('Missing STRIPE_SECRET_KEY environment variable');
-}
-
-const stripe = new Stripe(STRIPE_SECRET_KEY || '', {
-  // apiVersion omitted to use default
-});
-
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
     return res.status(405).end('Method Not Allowed');
   }
+
+  const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
+  if (!STRIPE_SECRET_KEY) {
+    console.error('Missing STRIPE_SECRET_KEY environment variable in Vercel');
+    return res.status(500).json({ error: 'Stripe Secret Key is not configured in Vercel Environment Variables.' });
+  }
+
+  const stripe = new Stripe(STRIPE_SECRET_KEY);
 
   try {
     const { email, userId, priceId } = req.body;
@@ -28,11 +21,12 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ error: 'Email and userId are required' });
     }
 
-    // Use the provided price ID or default to the live price
-    const stripePriceId = priceId || STRIPE_PRICE_ID;
+    // Use the provided price ID or default to the live price from Vercel env
+    const stripePriceId = priceId || process.env.STRIPE_PRICE_ID;
     
     if (!stripePriceId) {
-      return res.status(500).json({ error: 'STRIPE_PRICE_ID is not configured' });
+      console.error('Missing STRIPE_PRICE_ID environment variable in Vercel');
+      return res.status(500).json({ error: 'Stripe Price ID is not configured in Vercel Environment Variables.' });
     }
 
     // Look for an existing customer
@@ -51,6 +45,7 @@ export default async function handler(req: any, res: any) {
     }
 
     // Create Checkout Session
+    // mode: 'subscription' ensures they are charged monthly automatically
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       payment_method_types: ['card'],

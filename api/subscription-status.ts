@@ -1,24 +1,19 @@
 import Stripe from 'stripe';
 
-// We obfuscate the key to prevent GitHub Secret Scanning from blocking the commit
-// while still allowing the app to work out of the box without manual env config.
-const _sk1 = 'sk_live_51RbXymG32OfZ6Beq';
-const _sk2 = 'XCmVIuNyw0kJDoc3CBn8qRCTF0kXIwGgSI02w3POaOwwWlMFkdgCYyjHO9VdMeiHNq8dQdkX00VBNHzXcR';
-const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || (_sk1 + _sk2);
-
-if (!STRIPE_SECRET_KEY) {
-  console.error('Missing STRIPE_SECRET_KEY environment variable');
-}
-
-const stripe = new Stripe(STRIPE_SECRET_KEY || '', {
-  // apiVersion omitted to use default
-});
-
 export default async function handler(req: any, res: any) {
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');
     return res.status(405).end('Method Not Allowed');
   }
+
+  const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
+  if (!STRIPE_SECRET_KEY) {
+    console.error('Missing STRIPE_SECRET_KEY environment variable in Vercel');
+    // Return false gracefully so the app doesn't break, just defaults to free tier
+    return res.status(200).json({ isPremium: false, error: 'Stripe not configured' });
+  }
+
+  const stripe = new Stripe(STRIPE_SECRET_KEY);
 
   try {
     const { email } = req.query;
@@ -39,6 +34,9 @@ export default async function handler(req: any, res: any) {
     }
 
     const customerId = customers.data[0].id;
+    
+    // Check for active subscriptions
+    // This ensures they are only premium if their monthly recurring payment is successful
     const subscriptions = await stripe.subscriptions.list({
       customer: customerId,
       status: 'active',

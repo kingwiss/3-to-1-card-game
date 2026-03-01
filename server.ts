@@ -13,9 +13,7 @@ const PORT = 3000;
 let stripeClient: Stripe | null = null;
 function getStripe(): Stripe {
   if (!stripeClient) {
-    const _sk1 = 'sk_live_51RbXymG32OfZ6Beq';
-    const _sk2 = 'XCmVIuNyw0kJDoc3CBn8qRCTF0kXIwGgSI02w3POaOwwWlMFkdgCYyjHO9VdMeiHNq8dQdkX00VBNHzXcR';
-    const key = process.env.STRIPE_SECRET_KEY || (_sk1 + _sk2);
+    const key = process.env.STRIPE_SECRET_KEY;
     if (!key) {
       throw new Error('STRIPE_SECRET_KEY environment variable is required');
     }
@@ -38,9 +36,8 @@ app.post('/api/create-checkout-session', async (req, res) => {
       return res.status(400).json({ error: 'Email and userId are required' });
     }
 
-    // Use the provided price ID or default to a test price if not provided
-    // Fallback to the known live price ID if env var is missing
-    const stripePriceId = priceId || process.env.STRIPE_PRICE_ID || 'price_1T6FxvG32OfZ6Beq7QAa48cs';
+    // Use the provided price ID or default to the env var
+    const stripePriceId = priceId || process.env.STRIPE_PRICE_ID;
     
     if (!stripePriceId) {
       console.error('STRIPE_PRICE_ID is missing');
