@@ -1,19 +1,23 @@
 import React, { useEffect, useState } from 'react';
 import { useGame } from '../hooks/useGame';
+import { useAuth } from '../contexts/AuthContext';
 import { drawCard, playCard, initGame, addDrawnCardToHand, addDrawnCardToTarget, startNextRound, endTurn, findBestCardToPlay } from '../services/gameService';
 import Card from './Card';
+import Profile from './Profile';
 import { motion, AnimatePresence } from 'framer-motion';
 import { playSound } from '../utils/sound';
 import { ChevronUp, ChevronDown, Users, User, BookOpen, Star, Palette, X, Sparkles } from 'lucide-react';
 
 const Game: React.FC = () => {
   const { gameState, setGameState, sendAction, isPvP, setIsPvP, isWaiting, matchmakingStatus, playerIndex, startMatchmaking, cancelMatchmaking, disconnectPvP } = useGame();
+  const { userProfile } = useAuth();
   const [isHandExpanded, setIsHandExpanded] = useState(false);
   const [isPlayerRowExpanded, setIsPlayerRowExpanded] = useState(false);
   const [isOpponentRowExpanded, setIsOpponentRowExpanded] = useState(false);
   const [isOpponentHandExpanded, setIsOpponentHandExpanded] = useState(false);
   const [isTargetExpanded, setIsTargetExpanded] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [floatingModeText, setFloatingModeText] = useState<string | null>(null);
   const [isPremium, setIsPremium] = useState(false);
@@ -28,6 +32,19 @@ const Game: React.FC = () => {
   useEffect(() => {
     document.body.className = `theme-${themeColor}`;
   }, [themeColor]);
+
+  // Sync user profile with game state
+  useEffect(() => {
+    if (userProfile && gameState.players[playerIndex].name !== userProfile.displayName) {
+      const newPlayers = [...gameState.players];
+      newPlayers[playerIndex].name = userProfile.displayName;
+      setGameState({ ...gameState, players: newPlayers });
+    }
+    // Also sync premium status if needed for UI logic
+    if (userProfile?.isPremium !== isPremium) {
+      setIsPremium(userProfile?.isPremium || false);
+    }
+  }, [userProfile, playerIndex, gameState.players, isPremium, setGameState]);
 
   const { players, targetNumber, targetLineup, status, winnerId, activePlayerIndex, deck, hasDrawnCardThisTurn, drawnCard, round, pendingTargetDecision, gameMode } = gameState;
   
@@ -222,6 +239,20 @@ const Game: React.FC = () => {
 
   return (
     <div className="w-full max-w-md mx-auto h-[100dvh] flex flex-col items-center justify-between text-white p-1 font-sans relative overflow-hidden">
+      {/* Profile Button */}
+      <button
+        onClick={() => setShowProfile(true)}
+        className="absolute top-4 left-4 z-40 w-10 h-10 rounded-full bg-theme-800 border-2 border-theme-600 flex items-center justify-center overflow-hidden shadow-lg hover:scale-105 transition-transform"
+      >
+        {userProfile?.photoURL ? (
+          <img src={userProfile.photoURL} alt="Profile" className="w-full h-full object-cover" />
+        ) : (
+          <span className="text-lg font-bold text-white">
+            {userProfile?.displayName?.charAt(0).toUpperCase() || <User size={20} />}
+          </span>
+        )}
+      </button>
+
       {(status === 'roundOver' || status === 'gameOver') && (
         <div className="absolute inset-0 bg-black/80 flex items-center justify-center z-50">
           <div className="text-center">
@@ -1102,6 +1133,11 @@ const Game: React.FC = () => {
             </motion.div>
           </motion.div>
         )}
+      </AnimatePresence>
+
+      {/* Profile Modal */}
+      <AnimatePresence>
+        {showProfile && <Profile onClose={() => setShowProfile(false)} />}
       </AnimatePresence>
     </div>
   );
