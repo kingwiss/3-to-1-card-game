@@ -4,13 +4,14 @@ import { useAuth } from '../contexts/AuthContext';
 import { drawCard, playCard, initGame, addDrawnCardToHand, addDrawnCardToTarget, startNextRound, endTurn, findBestCardToPlay } from '../services/gameService';
 import Card from './Card';
 import Profile from './Profile';
+import Login from './Login';
 import { motion, AnimatePresence } from 'framer-motion';
 import { playSound } from '../utils/sound';
-import { ChevronUp, ChevronDown, Users, User, BookOpen, Star, Palette, X, Sparkles } from 'lucide-react';
+import { ChevronUp, ChevronDown, Users, User, BookOpen, Star, Palette, X, Sparkles, LogIn } from 'lucide-react';
 
 const Game: React.FC = () => {
   const { gameState, setGameState, sendAction, isPvP, setIsPvP, isWaiting, matchmakingStatus, playerIndex, startMatchmaking, cancelMatchmaking, disconnectPvP } = useGame();
-  const { userProfile } = useAuth();
+  const { user, userProfile } = useAuth();
   const [isHandExpanded, setIsHandExpanded] = useState(false);
   const [isPlayerRowExpanded, setIsPlayerRowExpanded] = useState(false);
   const [isOpponentRowExpanded, setIsOpponentRowExpanded] = useState(false);
@@ -18,6 +19,7 @@ const Game: React.FC = () => {
   const [isTargetExpanded, setIsTargetExpanded] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [floatingModeText, setFloatingModeText] = useState<string | null>(null);
   const [isPremium, setIsPremium] = useState(false);
@@ -239,19 +241,29 @@ const Game: React.FC = () => {
 
   return (
     <div className="w-full max-w-md mx-auto h-[100dvh] flex flex-col items-center justify-between text-white p-1 font-sans relative overflow-hidden">
-      {/* Profile Button */}
-      <button
-        onClick={() => setShowProfile(true)}
-        className="absolute top-4 left-4 z-40 w-10 h-10 rounded-full bg-theme-800 border-2 border-theme-600 flex items-center justify-center overflow-hidden shadow-lg hover:scale-105 transition-transform"
-      >
-        {userProfile?.photoURL ? (
-          <img src={userProfile.photoURL} alt="Profile" className="w-full h-full object-cover" />
-        ) : (
-          <span className="text-lg font-bold text-white">
-            {userProfile?.displayName?.charAt(0).toUpperCase() || <User size={20} />}
-          </span>
-        )}
-      </button>
+      {/* Auth Buttons (Top Right) */}
+      {user ? (
+        <button
+          onClick={() => setShowProfile(true)}
+          className="absolute top-4 right-4 z-40 w-10 h-10 rounded-full bg-theme-800 border-2 border-theme-600 flex items-center justify-center overflow-hidden shadow-lg hover:scale-105 transition-transform"
+        >
+          {userProfile?.photoURL ? (
+            <img src={userProfile.photoURL} alt="Profile" className="w-full h-full object-cover" />
+          ) : (
+            <span className="text-lg font-bold text-white">
+              {userProfile?.displayName?.charAt(0).toUpperCase() || <User size={20} />}
+            </span>
+          )}
+        </button>
+      ) : (
+        <button
+          onClick={() => setShowLogin(true)}
+          className="absolute top-4 right-4 z-40 px-3 py-1.5 bg-black text-white rounded-lg shadow-[0_4px_0_#333] active:shadow-none active:translate-y-[4px] flex items-center gap-2 font-bold text-xs transition-all border-none"
+        >
+          <LogIn size={14} />
+          Login / Sign Up
+        </button>
+      )}
 
       {(status === 'roundOver' || status === 'gameOver') && (
         <div className="absolute inset-0 bg-black/80 flex items-center justify-center z-50">
@@ -286,7 +298,7 @@ const Game: React.FC = () => {
       )}
 
       {/* Opponent Area */}
-      <div className="w-full flex flex-col items-center gap-1">
+      <div className="w-full flex flex-col items-center gap-1 pt-12">
         <div className="flex justify-between w-full px-4 items-center">
           <div className="text-base font-bold flex items-center gap-2">
             Opponent
@@ -1138,6 +1150,11 @@ const Game: React.FC = () => {
       {/* Profile Modal */}
       <AnimatePresence>
         {showProfile && <Profile onClose={() => setShowProfile(false)} />}
+      </AnimatePresence>
+
+      {/* Login Modal */}
+      <AnimatePresence>
+        {showLogin && <Login onClose={() => setShowLogin(false)} />}
       </AnimatePresence>
     </div>
   );

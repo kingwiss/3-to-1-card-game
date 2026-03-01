@@ -5,7 +5,7 @@ import { GameProvider } from './contexts/GameContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 const AppContent: React.FC = () => {
-  const { user, loading } = useAuth();
+  const { loading } = useAuth();
 
   if (loading) {
     return (
@@ -15,12 +15,10 @@ const AppContent: React.FC = () => {
     );
   }
 
-  return user ? (
+  return (
     <GameProvider>
       <Game />
     </GameProvider>
-  ) : (
-    <Login />
   );
 };
 
