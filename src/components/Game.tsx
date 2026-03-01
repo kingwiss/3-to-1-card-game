@@ -989,125 +989,132 @@ const Game: React.FC = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 p-4 overflow-y-auto"
+            className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
           >
             <motion.div 
               initial={{ scale: 0.9, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
-              className="border-2 border-[var(--theme-700)] rounded-xl p-6 max-w-4xl w-full shadow-2xl bg-[var(--theme-900)] my-8"
+              className="border-2 border-[var(--theme-700)] rounded-xl max-w-4xl w-full shadow-2xl bg-[var(--theme-900)] max-h-[90vh] flex flex-col overflow-hidden"
             >
-              <div className="flex justify-between items-center mb-6 border-b border-[var(--theme-700)] pb-4">
-                <h2 className="text-3xl font-bold text-white flex items-center gap-2">
+              {/* Header */}
+              <div className="flex justify-between items-center p-4 md:p-6 border-b border-[var(--theme-700)] shrink-0">
+                <h2 className="text-2xl md:text-3xl font-bold text-white flex items-center gap-2">
                   <Sparkles className="text-purple-400" /> Select Game Mode
                 </h2>
-                <button onClick={() => setIsGameModeModalOpen(false)} className="text-theme-400 hover:text-white p-1 rounded-full bg-[var(--theme-800)]">
+                <button onClick={() => setIsGameModeModalOpen(false)} className="text-theme-400 hover:text-white p-1 rounded-full bg-[var(--theme-800)] shrink-0">
                   <X size={24} />
                 </button>
               </div>
 
-              <div className="grid md:grid-cols-2 gap-6">
-                {/* Normal Mode */}
-                <div 
-                  onClick={() => {
-                    setGameState(initGame(gameState.isStrategicMode, 'normal'));
-                    setIsGameModeModalOpen(false);
-                  }}
-                  className={`cursor-pointer group relative overflow-hidden rounded-xl border-2 p-6 transition-all duration-300 hover:scale-[1.02] ${gameMode === 'normal' ? 'border-theme-500 bg-theme-900/50 ring-2 ring-theme-500/50' : 'border-[var(--theme-700)] bg-[var(--theme-800)] hover:border-theme-400'}`}
-                >
-                  <div className="absolute top-0 right-0 p-2 bg-theme-600 text-white text-xs font-bold rounded-bl-lg">CLASSIC</div>
-                  <h3 className="text-xl font-bold text-white mb-2">Normal Mode</h3>
-                  <p className="text-sm text-theme-300 mb-4">The classic strategic experience. Master the 1-2-3 cycle and use high cards wisely.</p>
-                  
-                  <div className="flex justify-center gap-2 mb-4 opacity-80 group-hover:opacity-100 transition-opacity">
-                    <div className="w-10 h-14 bg-theme-800 border border-theme-600 rounded flex items-center justify-center text-white font-bold">1</div>
-                    <div className="w-10 h-14 bg-theme-800 border border-theme-600 rounded flex items-center justify-center text-white font-bold">2</div>
-                    <div className="w-10 h-14 bg-theme-800 border border-theme-600 rounded flex items-center justify-center text-white font-bold">3</div>
+              {/* Scrollable Content */}
+              <div className="p-4 md:p-6 overflow-y-auto">
+                <div className="grid md:grid-cols-2 gap-6">
+                  {/* Normal Mode */}
+                  <div 
+                    onClick={() => {
+                      setGameState(initGame(gameState.isStrategicMode, 'normal'));
+                      setIsGameModeModalOpen(false);
+                    }}
+                    className={`cursor-pointer group relative overflow-hidden rounded-xl border-2 p-6 transition-all duration-300 hover:scale-[1.02] ${gameMode === 'normal' ? 'border-theme-500 bg-theme-900/50 ring-2 ring-theme-500/50' : 'border-[var(--theme-700)] bg-[var(--theme-800)] hover:border-theme-400'}`}
+                  >
+                    <div className="absolute top-0 right-0 p-2 bg-theme-600 text-white text-xs font-bold rounded-bl-lg">CLASSIC</div>
+                    <h3 className="text-xl font-bold text-white mb-2">Normal Mode</h3>
+                    <p className="text-sm text-theme-300 mb-4">The classic strategic experience. Master the 1-2-3 cycle and use high cards wisely.</p>
+                    
+                    <div className="flex justify-center gap-2 mb-4 opacity-80 group-hover:opacity-100 transition-opacity">
+                      <div className="w-10 h-14 bg-theme-800 border border-theme-600 rounded flex items-center justify-center text-white font-bold">1</div>
+                      <div className="w-10 h-14 bg-theme-800 border border-theme-600 rounded flex items-center justify-center text-white font-bold">2</div>
+                      <div className="w-10 h-14 bg-theme-800 border border-theme-600 rounded flex items-center justify-center text-white font-bold">3</div>
+                    </div>
+                    
+                    <ul className="text-xs text-theme-400 space-y-1 list-disc list-inside">
+                      <li>Standard 1-2-3 Cycle Rules</li>
+                      <li>4-5-6 Target Decisions</li>
+                      <li>Strategic or Mandatory Play</li>
+                    </ul>
                   </div>
-                  
-                  <ul className="text-xs text-theme-400 space-y-1 list-disc list-inside">
-                    <li>Standard 1-2-3 Cycle Rules</li>
-                    <li>4-5-6 Target Decisions</li>
-                    <li>Strategic or Mandatory Play</li>
-                  </ul>
+
+                  {/* Special Mode */}
+                  <div 
+                    onClick={() => {
+                      setGameState(initGame(gameState.isStrategicMode, 'special'));
+                      setIsGameModeModalOpen(false);
+                    }}
+                    className={`cursor-pointer group relative overflow-hidden rounded-xl border-2 p-6 transition-all duration-300 hover:scale-[1.02] ${gameMode === 'special' ? 'border-purple-500 bg-purple-900/20 ring-2 ring-purple-500/50' : 'border-[var(--theme-700)] bg-[var(--theme-800)] hover:border-purple-400'}`}
+                  >
+                    <div className="absolute top-0 right-0 p-2 bg-purple-600 text-white text-xs font-bold rounded-bl-lg flex items-center gap-1">
+                      <Sparkles size={12} /> PREMIUM
+                    </div>
+                    <h3 className="text-xl font-bold text-white mb-2">Special Cards Mode</h3>
+                    <p className="text-sm text-theme-300 mb-4">Unleash chaos with powerful new cards! Break the rules and dominate.</p>
+                    
+                    <div className="flex justify-center gap-2 mb-4 opacity-80 group-hover:opacity-100 transition-opacity">
+                      {/* Golden Card Preview */}
+                      <div className="w-10 h-14 border-2 border-yellow-500 rounded flex items-center justify-center bg-gradient-to-br from-yellow-400 to-yellow-600 text-white font-bold shadow-sm">?</div>
+                      {/* Permanent Card Preview */}
+                      <div className="w-10 h-14 border-2 border-purple-500 rounded flex items-center justify-center bg-[var(--theme-900)] text-white font-bold shadow-sm relative">
+                        1<span className="absolute bottom-0 right-0 text-[8px] text-purple-400 p-0.5">∞</span>
+                      </div>
+                      {/* Sequence Card Preview */}
+                      <div className="w-10 h-14 border-2 border-blue-400 rounded flex flex-col items-center justify-center bg-[var(--theme-900)] text-white font-bold text-[8px] shadow-sm leading-tight">
+                        <span>1</span><span>2</span><span>3</span>
+                      </div>
+                    </div>
+
+                    <ul className="text-xs text-theme-400 space-y-1 list-disc list-inside">
+                      <li><span className="text-yellow-400 font-bold">Golden Cards:</span> Choose any value (1-9)!</li>
+                      <li><span className="text-purple-400 font-bold">Permanent Cards:</span> Reusable cards!</li>
+                      <li><span className="text-blue-400 font-bold">Sequence Cards:</span> Play multiple numbers!</li>
+                    </ul>
+                  </div>
                 </div>
 
-                {/* Special Mode */}
-                <div 
-                  onClick={() => {
-                    setGameState(initGame(gameState.isStrategicMode, 'special'));
-                    setIsGameModeModalOpen(false);
-                  }}
-                  className={`cursor-pointer group relative overflow-hidden rounded-xl border-2 p-6 transition-all duration-300 hover:scale-[1.02] ${gameMode === 'special' ? 'border-purple-500 bg-purple-900/20 ring-2 ring-purple-500/50' : 'border-[var(--theme-700)] bg-[var(--theme-800)] hover:border-purple-400'}`}
-                >
-                  <div className="absolute top-0 right-0 p-2 bg-purple-600 text-white text-xs font-bold rounded-bl-lg flex items-center gap-1">
-                    <Sparkles size={12} /> PREMIUM
-                  </div>
-                  <h3 className="text-xl font-bold text-white mb-2">Special Cards Mode</h3>
-                  <p className="text-sm text-theme-300 mb-4">Unleash chaos with powerful new cards! Break the rules and dominate.</p>
-                  
-                  <div className="flex justify-center gap-2 mb-4 opacity-80 group-hover:opacity-100 transition-opacity">
-                    {/* Golden Card Preview */}
-                    <div className="w-10 h-14 border-2 border-yellow-500 rounded flex items-center justify-center bg-gradient-to-br from-yellow-400 to-yellow-600 text-white font-bold shadow-sm">?</div>
-                    {/* Permanent Card Preview */}
-                    <div className="w-10 h-14 border-2 border-purple-500 rounded flex items-center justify-center bg-[var(--theme-900)] text-white font-bold shadow-sm relative">
-                      1<span className="absolute bottom-0 right-0 text-[8px] text-purple-400 p-0.5">∞</span>
+                {/* Detailed Card Descriptions */}
+                <div className="mt-8 border-t border-[var(--theme-700)] pt-6">
+                  <h3 className="text-lg font-bold text-white mb-4">Special Card Details</h3>
+                  <div className="grid gap-4">
+                    <div className="flex gap-4 items-start bg-black/20 p-3 rounded-lg border border-[var(--theme-700)]">
+                      <div className="w-16 h-24 border-2 border-yellow-500 rounded-lg flex items-center justify-center bg-gradient-to-br from-yellow-400 to-yellow-600 text-white font-bold text-3xl shadow-lg flex-shrink-0">?</div>
+                      <div>
+                        <h4 className="font-bold text-yellow-400 text-lg">Golden Card</h4>
+                        <p className="text-sm text-theme-200">The ultimate wild card. When played, you choose its value from 1 to 9. It bypasses the 1-2-3 cycle requirement, allowing you to play high numbers instantly or fill a specific gap in your strategy.</p>
+                      </div>
                     </div>
-                    {/* Sequence Card Preview */}
-                    <div className="w-10 h-14 border-2 border-blue-400 rounded flex flex-col items-center justify-center bg-[var(--theme-900)] text-white font-bold text-[8px] shadow-sm leading-tight">
-                      <span>1</span><span>2</span><span>3</span>
-                    </div>
-                  </div>
 
-                  <ul className="text-xs text-theme-400 space-y-1 list-disc list-inside">
-                    <li><span className="text-yellow-400 font-bold">Golden Cards:</span> Choose any value (1-9)!</li>
-                    <li><span className="text-purple-400 font-bold">Permanent Cards:</span> Reusable cards!</li>
-                    <li><span className="text-blue-400 font-bold">Sequence Cards:</span> Play multiple numbers!</li>
-                  </ul>
+                    <div className="flex gap-4 items-start bg-black/20 p-3 rounded-lg border border-[var(--theme-700)]">
+                      <div className="w-16 h-24 border-2 border-purple-500 rounded-lg flex items-center justify-center bg-[var(--theme-900)] text-white font-bold text-3xl shadow-lg flex-shrink-0 relative">
+                        2
+                        <span className="absolute bottom-1 right-1 text-sm text-purple-400">∞</span>
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-purple-400 text-lg">Permanent Card</h4>
+                        <p className="text-sm text-theme-200">A card that never leaves your hand! Once played, a copy is added to your row, but the original stays with you. Use it to reliably complete cycles or increment your score turn after turn.</p>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-4 items-start bg-black/20 p-3 rounded-lg border border-[var(--theme-700)]">
+                      <div className="w-16 h-24 border-2 border-blue-400 rounded-lg flex flex-col items-center justify-center bg-[var(--theme-900)] text-white font-bold text-sm shadow-lg flex-shrink-0 leading-tight gap-1">
+                        <span>1</span><span>2</span><span>3</span>
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-blue-400 text-lg">Sequence Card</h4>
+                        <p className="text-sm text-theme-200">Efficiency in a single card. Playing this adds a predefined sequence (e.g., 1-2-3) to your row immediately. Perfect for instantly unlocking high cards or making a big score jump in one move.</p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              {/* Detailed Card Descriptions */}
-              <div className="mt-8 border-t border-[var(--theme-700)] pt-6">
-                <h3 className="text-lg font-bold text-white mb-4">Special Card Details</h3>
-                <div className="grid gap-4">
-                  <div className="flex gap-4 items-start bg-black/20 p-3 rounded-lg border border-[var(--theme-700)]">
-                    <div className="w-16 h-24 border-2 border-yellow-500 rounded-lg flex items-center justify-center bg-gradient-to-br from-yellow-400 to-yellow-600 text-white font-bold text-3xl shadow-lg flex-shrink-0">?</div>
-                    <div>
-                      <h4 className="font-bold text-yellow-400 text-lg">Golden Card</h4>
-                      <p className="text-sm text-theme-200">The ultimate wild card. When played, you choose its value from 1 to 9. It bypasses the 1-2-3 cycle requirement, allowing you to play high numbers instantly or fill a specific gap in your strategy.</p>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-4 items-start bg-black/20 p-3 rounded-lg border border-[var(--theme-700)]">
-                    <div className="w-16 h-24 border-2 border-purple-500 rounded-lg flex items-center justify-center bg-[var(--theme-900)] text-white font-bold text-3xl shadow-lg flex-shrink-0 relative">
-                      2
-                      <span className="absolute bottom-1 right-1 text-sm text-purple-400">∞</span>
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-purple-400 text-lg">Permanent Card</h4>
-                      <p className="text-sm text-theme-200">A card that never leaves your hand! Once played, a copy is added to your row, but the original stays with you. Use it to reliably complete cycles or increment your score turn after turn.</p>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-4 items-start bg-black/20 p-3 rounded-lg border border-[var(--theme-700)]">
-                    <div className="w-16 h-24 border-2 border-blue-400 rounded-lg flex flex-col items-center justify-center bg-[var(--theme-900)] text-white font-bold text-sm shadow-lg flex-shrink-0 leading-tight gap-1">
-                      <span>1</span><span>2</span><span>3</span>
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-blue-400 text-lg">Sequence Card</h4>
-                      <p className="text-sm text-theme-200">Efficiency in a single card. Playing this adds a predefined sequence (e.g., 1-2-3) to your row immediately. Perfect for instantly unlocking high cards or making a big score jump in one move.</p>
-                    </div>
-                  </div>
-                </div>
+              {/* Footer */}
+              <div className="p-4 md:p-6 border-t border-[var(--theme-700)] shrink-0 bg-[var(--theme-900)]">
+                <button 
+                  onClick={() => setIsGameModeModalOpen(false)}
+                  className="w-full py-3 bg-[var(--theme-700)] hover:bg-[var(--theme-600)] text-white font-bold rounded-lg transition-colors"
+                >
+                  Close
+                </button>
               </div>
-
-              <button 
-                onClick={() => setIsGameModeModalOpen(false)}
-                className="mt-6 w-full py-3 bg-[var(--theme-700)] hover:bg-[var(--theme-600)] text-white font-bold rounded-lg transition-colors"
-              >
-                Close
-              </button>
             </motion.div>
           </motion.div>
         )}
@@ -1126,7 +1133,7 @@ const Game: React.FC = () => {
               initial={{ scale: 0.9 }}
               animate={{ scale: 1 }}
               exit={{ scale: 0.9 }}
-              className="border-2 border-yellow-500 rounded-xl p-6 max-w-lg w-full shadow-2xl bg-[var(--theme-900)] overflow-hidden relative"
+              className="border-2 border-yellow-500 rounded-xl p-6 max-w-lg w-full shadow-2xl bg-[var(--theme-900)] overflow-y-auto max-h-[90vh] relative"
             >
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-yellow-300 via-yellow-500 to-yellow-300 animate-pulse"></div>
               

@@ -28,7 +28,7 @@ const Profile: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         initial={{ scale: 0.9, y: 20 }}
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.9, y: 20 }}
-        className="bg-slate-800 rounded-2xl shadow-2xl p-6 max-w-md w-full border border-slate-700 relative"
+        className="bg-slate-800 rounded-2xl shadow-2xl p-6 max-w-md w-full border border-slate-700 relative max-h-[90vh] overflow-y-auto"
       >
         <button
           onClick={onClose}
