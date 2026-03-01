@@ -28,19 +28,59 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Force logout if version mismatch or stuck
+    const checkVersionAndLogout = async () => {
+      const currentVersion = '1.0.1'; // Increment this to force logout for everyone
+      const storedVersion = localStorage.getItem('app_version');
+      
+      if (storedVersion !== currentVersion) {
+        try {
+          await auth.signOut();
+          localStorage.setItem('app_version', currentVersion);
+          console.log('Forced logout due to version update');
+        } catch (error) {
+          console.error('Error signing out:', error);
+        }
+      }
+    };
+
+    checkVersionAndLogout();
+
+    // Safety timeout for loading state
+    const loadingTimeout = setTimeout(() => {
+      setLoading((currentLoading) => {
+        if (currentLoading) {
+          console.warn('Auth loading timed out, forcing completion');
+          return false;
+        }
+        return currentLoading;
+      });
+    }, 8000); // 8 seconds timeout
+
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       try {
         if (currentUser) {
           const docRef = doc(db, 'users', currentUser.uid);
-          const docSnap = await getDoc(docRef);
+          
+          // Add timeout to Firestore fetch
+          const docSnapPromise = getDoc(docRef);
+          const timeoutPromise = new Promise<never>((_, reject) => 
+            setTimeout(() => reject(new Error('Firestore timeout')), 5000)
+          );
+          
+          const docSnap = await Promise.race([docSnapPromise, timeoutPromise])
+            .catch(err => {
+              console.error('Firestore fetch failed or timed out:', err);
+              return null;
+            });
           
           let currentProfile: UserProfile;
 
-          if (docSnap.exists()) {
+          if (docSnap && docSnap.exists()) {
             currentProfile = docSnap.data() as UserProfile;
           } else {
-            // Create new profile
+            // Create new profile or fallback if fetch failed
             currentProfile = {
               uid: currentUser.uid,
               displayName: currentUser.displayName || 'Player',
@@ -50,12 +90,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               gamesPlayed: 0,
               isPremium: false,
             };
-            await setDoc(docRef, currentProfile);
+            // Only try to set if we have a valid connection, otherwise just use local state
+            try {
+              if (!docSnap) {
+                 // If we failed to fetch, we might be offline. Don't overwrite unless we are sure.
+                 // But for new users, we must create.
+                 // Let's assume if docSnap is null (error), we just use default profile in memory
+                 // and don't write to DB to avoid overwriting existing data with defaults.
+                 console.warn('Using default profile due to fetch error');
+              } else {
+                 await setDoc(docRef, currentProfile);
+              }
+            } catch (e) {
+              console.error('Error creating profile:', e);
+            }
           }
 
-          // Check subscription status from backend
+          // Check subscription status from backend with timeout
           try {
-            const response = await fetch(`/api/subscription-status?email=${encodeURIComponent(currentUser.email || '')}`);
+            const controller = new AbortController();
+            const id = setTimeout(() => controller.abort(), 3000);
+            
+            const response = await fetch(`/api/subscription-status?email=${encodeURIComponent(currentUser.email || '')}`, {
+              signal: controller.signal
+            });
+            clearTimeout(id);
+            
             if (response.ok) {
               const { isPremium } = await response.json();
               
@@ -67,7 +127,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
               if (currentProfile.isPremium !== finalPremiumStatus) {
                 currentProfile.isPremium = finalPremiumStatus;
-                await setDoc(docRef, { isPremium: finalPremiumStatus }, { merge: true });
+                // Try to update Firestore, but don't block if it fails
+                setDoc(docRef, { isPremium: finalPremiumStatus }, { merge: true }).catch(console.error);
               }
               
               if (isSuccess) {
@@ -88,10 +149,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error("Error fetching user profile:", error);
       } finally {
         setLoading(false);
+        clearTimeout(loadingTimeout);
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      clearTimeout(loadingTimeout);
+    };
   }, []);
 
   const updateProfile = async (data: Partial<UserProfile>) => {

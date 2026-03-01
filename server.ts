@@ -118,6 +118,11 @@ app.get('/api/subscription-status', async (req, res) => {
       return res.status(400).json({ error: 'Email is required' });
     }
 
+    // Grant premium access to specific admin email
+    if (email === 'fredwisseh@gmail.com') {
+      return res.json({ isPremium: true });
+    }
+
     const customers = await stripe.customers.list({ email: email, limit: 1 });
     
     if (customers.data.length === 0) {
