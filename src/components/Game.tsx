@@ -2,12 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { useGame } from '../hooks/useGame';
 import { useAuth } from '../contexts/AuthContext';
 import { drawCard, playCard, initGame, addDrawnCardToHand, addDrawnCardToTarget, startNextRound, endTurn, findBestCardToPlay } from '../services/gameService';
+import { auth } from '../services/firebase';
 import Card from './Card';
 import Profile from './Profile';
 import Login from './Login';
+import PremiumModal from './PremiumModal';
 import { motion, AnimatePresence } from 'framer-motion';
 import { playSound } from '../utils/sound';
-import { ChevronUp, ChevronDown, Users, User, BookOpen, Star, Palette, X, Sparkles, LogIn } from 'lucide-react';
+import { ChevronUp, ChevronDown, Users, User, BookOpen, Star, Palette, X, Sparkles, LogIn, LogOut } from 'lucide-react';
 
 const Game: React.FC = () => {
   const { gameState, setGameState, sendAction, isPvP, setIsPvP, isWaiting, matchmakingStatus, playerIndex, startMatchmaking, cancelMatchmaking, disconnectPvP } = useGame();
@@ -20,6 +22,8 @@ const Game: React.FC = () => {
   const [showGuide, setShowGuide] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [floatingModeText, setFloatingModeText] = useState<string | null>(null);
   const [isPremium, setIsPremium] = useState(false);
@@ -40,13 +44,18 @@ const Game: React.FC = () => {
     if (userProfile && gameState.players[playerIndex].name !== userProfile.displayName) {
       const newPlayers = [...gameState.players];
       newPlayers[playerIndex].name = userProfile.displayName;
-      setGameState({ ...gameState, players: newPlayers });
+      
+      if (isPvP) {
+        sendAction({ type: 'syncName', name: userProfile.displayName, playerIndex });
+      } else {
+        setGameState({ ...gameState, players: newPlayers });
+      }
     }
     // Also sync premium status if needed for UI logic
     if (userProfile?.isPremium !== isPremium) {
       setIsPremium(userProfile?.isPremium || false);
     }
-  }, [userProfile, playerIndex, gameState.players, isPremium, setGameState]);
+  }, [userProfile, playerIndex, gameState.players, isPremium, setGameState, isPvP, sendAction]);
 
   const { players, targetNumber, targetLineup, status, winnerId, activePlayerIndex, deck, hasDrawnCardThisTurn, drawnCard, round, pendingTargetDecision, gameMode } = gameState;
   
@@ -243,18 +252,55 @@ const Game: React.FC = () => {
     <div className="w-full max-w-md mx-auto h-[100dvh] flex flex-col items-center justify-between text-white p-1 font-sans relative overflow-hidden">
       {/* Auth Buttons (Top Right) */}
       {user ? (
-        <button
-          onClick={() => setShowProfile(true)}
-          className="absolute top-4 right-4 z-40 w-10 h-10 rounded-full bg-theme-800 border-2 border-theme-600 flex items-center justify-center overflow-hidden shadow-lg hover:scale-105 transition-transform"
-        >
-          {userProfile?.photoURL ? (
-            <img src={userProfile.photoURL} alt="Profile" className="w-full h-full object-cover" />
-          ) : (
-            <span className="text-lg font-bold text-white">
-              {userProfile?.displayName?.charAt(0).toUpperCase() || <User size={20} />}
-            </span>
+        <div className="absolute top-4 right-4 z-40 flex flex-col items-end">
+          {isProfileMenuOpen && (
+            <div 
+              className="fixed inset-0 z-30" 
+              onClick={() => setIsProfileMenuOpen(false)}
+            />
           )}
-        </button>
+          <button
+            onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
+            className="relative z-40 w-10 h-10 rounded-full bg-theme-800 border-2 border-theme-600 flex items-center justify-center overflow-hidden shadow-lg hover:scale-105 transition-transform"
+          >
+            {userProfile?.photoURL ? (
+              <img src={userProfile.photoURL} alt="Profile" className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-lg font-bold text-white">
+                {userProfile?.displayName?.charAt(0).toUpperCase() || <User size={20} />}
+              </span>
+            )}
+          </button>
+          
+          {isProfileMenuOpen && (
+            <div className="relative z-40 mt-2 w-48 bg-slate-800 border border-slate-700 rounded-xl shadow-xl overflow-hidden flex flex-col">
+              <div className="px-4 py-3 border-b border-slate-700">
+                <p className="text-sm font-bold text-white truncate">{userProfile?.displayName}</p>
+                <p className="text-xs text-slate-400 truncate">{user?.email}</p>
+              </div>
+              <button
+                onClick={() => {
+                  setIsProfileMenuOpen(false);
+                  setShowProfile(true);
+                }}
+                className="px-4 py-3 text-left text-sm text-white hover:bg-slate-700 transition-colors flex items-center gap-2"
+              >
+                <User size={16} />
+                View Dashboard
+              </button>
+              <button
+                onClick={async () => {
+                  setIsProfileMenuOpen(false);
+                  await auth.signOut();
+                }}
+                className="px-4 py-3 text-left text-sm text-red-400 hover:bg-slate-700 transition-colors flex items-center gap-2"
+              >
+                <LogOut size={16} />
+                Log Out
+              </button>
+            </div>
+          )}
+        </div>
       ) : (
         <button
           onClick={() => setShowLogin(true)}
@@ -301,7 +347,7 @@ const Game: React.FC = () => {
       <div className="w-full flex flex-col items-center gap-1 pt-12">
         <div className="flex justify-between w-full px-4 items-center">
           <div className="text-base font-bold flex items-center gap-2">
-            Opponent
+            {opponent.name || 'Opponent'}
             {opponent.cleanSlate && (
               <span className="text-[10px] bg-theme-500/80 text-white px-1.5 py-0.5 rounded-full whitespace-nowrap">Clean Slate</span>
             )}
@@ -444,7 +490,7 @@ const Game: React.FC = () => {
       <div className="w-full flex flex-col items-center gap-1 pb-10">
         <div className="flex justify-between w-full px-4 items-center">
           <div className="text-base font-bold w-20 flex items-center gap-2">
-            {isPvP ? `${player.name} (You)` : 'You'}
+            {player.name || 'You'}
             {player.cleanSlate && (
               <span className="text-[10px] bg-theme-500/80 text-white px-1.5 py-0.5 rounded-full whitespace-nowrap">Clean Slate</span>
             )}
@@ -718,14 +764,11 @@ const Game: React.FC = () => {
             >
               <button 
                 onClick={() => {
-                  setIsPremium(!isPremium);
-                  if (isPremium) {
-                    setThemeColor('slate'); // Reset to default when turning off premium
-                  }
+                  setShowPremiumModal(true);
                   setIsMenuOpen(false);
                 }}
                 className={`w-12 h-12 border rounded-full flex items-center justify-center transition-colors shadow-lg ${isPremium ? 'bg-yellow-500 border-yellow-400 text-white hover:bg-yellow-400' : 'bg-[var(--theme-900)] border-[var(--theme-700)] text-theme-300 hover:bg-[var(--theme-800)] hover:text-white'}`}
-                title="Toggle Premium"
+                title="Get Premium"
               >
                 <Star size={20} className={isPremium ? 'fill-current' : ''} />
               </button>
@@ -1155,6 +1198,11 @@ const Game: React.FC = () => {
       {/* Login Modal */}
       <AnimatePresence>
         {showLogin && <Login onClose={() => setShowLogin(false)} />}
+      </AnimatePresence>
+
+      {/* Premium Modal */}
+      <AnimatePresence>
+        {showPremiumModal && <PremiumModal onClose={() => setShowPremiumModal(false)} />}
       </AnimatePresence>
     </div>
   );

@@ -61,9 +61,6 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const handleIncomingData = useCallback((data: any) => {
     if (data.type === 'gameStateUpdate') {
       const newState = data.state;
-      // Ensure names are clean for local rendering logic
-      newState.players[0].name = "Player 1";
-      newState.players[1].name = "Player 2";
       applyStateChange(newState);
     }
   }, [applyStateChange]);
@@ -283,18 +280,27 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           case "playCard": newState = playCard(newState, action.cardId, action.selectedValue); break;
           case "endTurn": newState = endTurn(newState); break;
           case "startNextRound": newState = startNextRound(newState); break;
-          case "restartGame":
+          case "syncName":
+            newState.players[action.playerIndex].name = action.name;
+            break;
+          case "restartGame": {
+            const p1Name = newState.players[0].name;
+            const p2Name = newState.players[1].name;
             newState = initGame(newState.isStrategicMode);
-            newState.players[0].name = "Player 1";
-            newState.players[1].name = "Player 2";
+            newState.players[0].name = p1Name;
+            newState.players[1].name = p2Name;
             newState.mode = "multiplayer";
             break;
-          case "toggleStrategicMode":
+          }
+          case "toggleStrategicMode": {
+            const p1Name = newState.players[0].name;
+            const p2Name = newState.players[1].name;
             newState = initGame(action.isStrategicMode);
-            newState.players[0].name = "Player 1";
-            newState.players[1].name = "Player 2";
+            newState.players[0].name = p1Name;
+            newState.players[1].name = p2Name;
             newState.mode = "multiplayer";
             break;
+          }
           case "endGame": newState = { ...newState, status: "gameOver" }; break;
         }
       } catch (e) {
@@ -324,6 +330,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       isPvP, 
       setIsPvP, 
       isWaiting, 
+      matchmakingStatus,
       playerIndex,
       startMatchmaking,
       cancelMatchmaking,

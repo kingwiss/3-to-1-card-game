@@ -1,8 +1,8 @@
 import React from 'react';
 import Game from './components/Game';
-import Login from './components/Login';
 import { GameProvider } from './contexts/GameContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import ErrorBoundary from './components/ErrorBoundary';
 
 const AppContent: React.FC = () => {
   const { loading } = useAuth();
@@ -16,17 +16,21 @@ const AppContent: React.FC = () => {
   }
 
   return (
-    <GameProvider>
-      <Game />
-    </GameProvider>
+    <ErrorBoundary>
+      <GameProvider>
+        <Game />
+      </GameProvider>
+    </ErrorBoundary>
   );
 };
 
 const App: React.FC = () => {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </ErrorBoundary>
   );
 };
 

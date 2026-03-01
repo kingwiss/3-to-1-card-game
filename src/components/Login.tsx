@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { auth, googleProvider } from '../services/firebase';
-import { signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
+import { auth, googleProvider, db } from '../services/firebase';
+import { signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, updateProfile as updateFirebaseAuthProfile } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
 import { motion } from 'framer-motion';
-import { Mail, Lock, LogIn, UserPlus, AlertCircle, X, KeyRound } from 'lucide-react';
+import { Mail, Lock, LogIn, UserPlus, AlertCircle, X, KeyRound, User } from 'lucide-react';
 
 interface LoginProps {
   onClose?: () => void;
@@ -13,6 +14,7 @@ const Login: React.FC<LoginProps> = ({ onClose }) => {
   const [isResetting, setIsResetting] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [username, setUsername] = useState('');
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
@@ -39,7 +41,12 @@ const Login: React.FC<LoginProps> = ({ onClose }) => {
       if (isLogin) {
         await signInWithEmailAndPassword(auth, email, password);
       } else {
-        await createUserWithEmailAndPassword(auth, email, password);
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        if (username) {
+          await updateFirebaseAuthProfile(userCredential.user, { displayName: username });
+          const docRef = doc(db, 'users', userCredential.user.uid);
+          await setDoc(docRef, { displayName: username }, { merge: true });
+        }
       }
       onClose?.();
     } catch (err: any) {
@@ -94,6 +101,20 @@ const Login: React.FC<LoginProps> = ({ onClose }) => {
               required
             />
           </div>
+          
+          {!isLogin && !isResetting && (
+            <div className="relative">
+              <User className="absolute left-3 top-3 text-slate-400" size={20} />
+              <input
+                type="text"
+                placeholder="Username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg py-3 pl-10 pr-4 text-white focus:outline-none focus:border-blue-500 transition-colors"
+                required
+              />
+            </div>
+          )}
           
           {!isResetting && (
             <div className="relative">

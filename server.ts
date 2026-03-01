@@ -1,158 +1,164 @@
-import express from "express";
-import { createServer as createViteServer } from "vite";
-import { Server } from "socket.io";
-import http from "http";
-import { initGame, drawCard, addDrawnCardToHand, addDrawnCardToTarget, playCard, endTurn, startNextRound } from "./src/services/gameService.js";
-import { GameState } from "./src/types/index.js";
+import express from 'express';
+import cors from 'cors';
+import Stripe from 'stripe';
+import dotenv from 'dotenv';
+import { createServer as createViteServer } from 'vite';
+
+dotenv.config();
+
+const app = express();
+const PORT = 3000;
+
+// Initialize Stripe with the secret key
+let stripeClient: Stripe | null = null;
+function getStripe(): Stripe {
+  if (!stripeClient) {
+    const key = process.env.STRIPE_SECRET_KEY;
+    if (!key) {
+      throw new Error('STRIPE_SECRET_KEY environment variable is required');
+    }
+    stripeClient = new Stripe(key);
+  }
+  return stripeClient;
+}
+
+// Middleware for JSON parsing (needed for API routes)
+app.use(express.json());
+app.use(cors());
+
+// API Routes
+app.post('/api/create-checkout-session', async (req, res) => {
+  try {
+    const stripe = getStripe();
+    const { email, userId, priceId } = req.body;
+
+    if (!email || !userId) {
+      return res.status(400).json({ error: 'Email and userId are required' });
+    }
+
+    // Use the provided price ID or default to a test price if not provided
+    const stripePriceId = priceId || process.env.STRIPE_PRICE_ID;
+    
+    if (!stripePriceId) {
+      return res.status(500).json({ error: 'STRIPE_PRICE_ID is not configured' });
+    }
+
+    // Look for an existing customer
+    const customers = await stripe.customers.list({ email: email, limit: 1 });
+    let customerId = customers.data.length > 0 ? customers.data[0].id : undefined;
+
+    if (!customerId) {
+      // Create a new customer
+      const customer = await stripe.customers.create({
+        email: email,
+        metadata: {
+          firebaseUID: userId,
+        },
+      });
+      customerId = customer.id;
+    }
+
+    const session = await stripe.checkout.sessions.create({
+      customer: customerId,
+      payment_method_types: ['card'],
+      line_items: [
+        {
+          price: stripePriceId,
+          quantity: 1,
+        },
+      ],
+      mode: 'subscription',
+      success_url: `${req.protocol}://${req.get('host')}/?success=true&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${req.protocol}://${req.get('host')}/?canceled=true`,
+      client_reference_id: userId,
+    });
+
+    res.json({ url: session.url });
+  } catch (error: any) {
+    console.error('Error creating checkout session:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/create-portal-session', async (req, res) => {
+  try {
+    const stripe = getStripe();
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    const customers = await stripe.customers.list({ email: email, limit: 1 });
+    
+    if (customers.data.length === 0) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    const customerId = customers.data[0].id;
+
+    const session = await stripe.billingPortal.sessions.create({
+      customer: customerId,
+      return_url: `${req.protocol}://${req.get('host')}/`,
+    });
+
+    res.json({ url: session.url });
+  } catch (error: any) {
+    console.error('Error creating portal session:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/subscription-status', async (req, res) => {
+  try {
+    const stripe = getStripe();
+    const { email } = req.query;
+
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    const customers = await stripe.customers.list({ email: email, limit: 1 });
+    
+    if (customers.data.length === 0) {
+      return res.json({ isPremium: false });
+    }
+
+    const customerId = customers.data[0].id;
+    const subscriptions = await stripe.subscriptions.list({
+      customer: customerId,
+      status: 'active',
+      limit: 1,
+    });
+
+    const isPremium = subscriptions.data.length > 0;
+    res.json({ isPremium });
+  } catch (error: any) {
+    console.error('Error checking subscription status:', error);
+    // If Stripe is not configured, just return false gracefully
+    if (error.message.includes('STRIPE_SECRET_KEY')) {
+      return res.json({ isPremium: false, error: 'Stripe not configured' });
+    }
+    res.status(500).json({ error: error.message });
+  }
+});
 
 async function startServer() {
-  const app = express();
-  const PORT = 3000;
-  console.log("NODE_ENV is:", process.env.NODE_ENV);
-  const server = http.createServer(app);
-  const io = new Server(server, {
-    cors: {
-      origin: "*",
-      methods: ["GET", "POST"]
-    }
-  });
-
-  app.get("/api/health", (req, res) => {
-    res.json({ status: "ok" });
-  });
-
   // Vite middleware for development
-  const vite = await createViteServer({
-    server: { middlewareMode: true },
-    appType: "spa",
-  });
-  app.use(vite.middlewares);
-
-  // Matchmaking and Game State
-  let waitingPlayer: string | null = null;
-  const games: Record<string, { state: GameState, players: string[] }> = {};
-  const playerToGame: Record<string, string> = {};
-
-  io.on("connection", (socket) => {
-    console.log("A user connected:", socket.id);
-
-    socket.on("findMatch", () => {
-      if (waitingPlayer && waitingPlayer !== socket.id) {
-        // Match found
-        const roomId = `game_${waitingPlayer}_${socket.id}`;
-        const p1 = waitingPlayer;
-        const p2 = socket.id;
-        
-        waitingPlayer = null;
-
-        const initialState = initGame();
-        // Modify names for multiplayer
-        initialState.players[0].name = "Player 1";
-        initialState.players[1].name = "Player 2";
-        initialState.mode = "multiplayer";
-
-        games[roomId] = {
-          state: initialState,
-          players: [p1, p2]
-        };
-
-        playerToGame[p1] = roomId;
-        playerToGame[p2] = roomId;
-
-        const socket1 = io.sockets.sockets.get(p1);
-        const socket2 = io.sockets.sockets.get(p2);
-
-        if (socket1) {
-          socket1.join(roomId);
-          socket1.emit("matchFound", { roomId, playerIndex: 0, state: initialState });
-        }
-        if (socket2) {
-          socket2.join(roomId);
-          socket2.emit("matchFound", { roomId, playerIndex: 1, state: initialState });
-        }
-      } else {
-        // Wait for match
-        waitingPlayer = socket.id;
-        socket.emit("waitingForMatch");
-      }
+  if (process.env.NODE_ENV !== 'production') {
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: 'spa',
     });
-
-    socket.on("cancelMatch", () => {
-      if (waitingPlayer === socket.id) {
-        waitingPlayer = null;
-      }
+    app.use(vite.middlewares);
+  } else {
+    app.use(express.static('dist'));
+    app.get('*', (req, res) => {
+      res.sendFile('dist/index.html', { root: '.' });
     });
+  }
 
-    socket.on("action", (data) => {
-      const roomId = playerToGame[socket.id];
-      if (!roomId || !games[roomId]) return;
-
-      const game = games[roomId];
-      const playerIndex = game.players.indexOf(socket.id);
-
-      try {
-        let newState = game.state;
-        switch (data.type) {
-          case "drawCard":
-            newState = drawCard(newState);
-            break;
-          case "addDrawnCardToHand":
-            newState = addDrawnCardToHand(newState);
-            break;
-          case "addDrawnCardToTarget":
-            newState = addDrawnCardToTarget(newState);
-            break;
-          case "playCard":
-            newState = playCard(newState, data.cardId);
-            break;
-          case "endTurn":
-            newState = endTurn(newState);
-            break;
-          case "startNextRound":
-            newState = startNextRound(newState);
-            break;
-          case "restartGame":
-            newState = initGame(newState.isStrategicMode);
-            newState.players[0].name = "Player 1";
-            newState.players[1].name = "Player 2";
-            newState.mode = "multiplayer";
-            break;
-          case "toggleStrategicMode":
-            newState = initGame(data.isStrategicMode);
-            newState.players[0].name = "Player 1";
-            newState.players[1].name = "Player 2";
-            newState.mode = "multiplayer";
-            break;
-          case "endGame":
-            newState = { ...newState, status: "gameOver" };
-            break;
-        }
-        game.state = newState;
-        io.to(roomId).emit("gameStateUpdate", newState);
-      } catch (e) {
-        console.error("Action error", e);
-      }
-    });
-
-    socket.on("disconnect", () => {
-      console.log("User disconnected:", socket.id);
-      if (waitingPlayer === socket.id) {
-        waitingPlayer = null;
-      }
-      
-      const roomId = playerToGame[socket.id];
-      if (roomId && games[roomId]) {
-        io.to(roomId).emit("opponentDisconnected");
-        const p1 = games[roomId].players[0];
-        const p2 = games[roomId].players[1];
-        if (p1) delete playerToGame[p1];
-        if (p2) delete playerToGame[p2];
-        delete games[roomId];
-      }
-    });
-  });
-
-  server.listen(PORT, "0.0.0.0", () => {
+  app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
 }
