@@ -3,13 +3,39 @@ import { DECK_COMPOSITION, INITIAL_HAND_SIZE, TARGET_LINEUP_SIZE } from '../cons
 
 const createId = () => Math.random().toString(36).substr(2, 9);
 
-const createDeck = (): Card[] => {
+const createDeck = (gameMode: 'normal' | 'special' = 'normal'): Card[] => {
   const deck: Card[] = [];
   for (const value in DECK_COMPOSITION) {
     for (let i = 0; i < DECK_COMPOSITION[value as any as keyof typeof DECK_COMPOSITION]; i++) {
-      deck.push({ id: createId(), value: parseInt(value as string) });
+      deck.push({ id: createId(), value: parseInt(value as string), type: 'number' });
     }
   }
+
+  if (gameMode === 'special') {
+    // Add 2 Golden Cards
+    for (let i = 0; i < 2; i++) {
+      deck.push({ id: createId(), value: 0, type: 'golden' });
+    }
+
+    // Add Permanent Cards (2 of each 1, 2, 3)
+    for (let i = 0; i < 2; i++) {
+      deck.push({ id: createId(), value: 1, type: 'permanent', permanentValue: 1 });
+      deck.push({ id: createId(), value: 2, type: 'permanent', permanentValue: 2 });
+      deck.push({ id: createId(), value: 3, type: 'permanent', permanentValue: 3 });
+    }
+
+    // Add Sequence Cards
+    const sequences = [
+      [1, 2, 1], [2, 3, 2], [1, 2, 3],
+      [1, 3, 1], [2, 1, 2], [3, 1, 3]
+    ];
+    
+    sequences.forEach(seq => {
+      // Value is the first number for sorting/display purposes
+      deck.push({ id: createId(), value: seq[0], type: 'sequence', sequence: seq });
+    });
+  }
+
   return deck;
 };
 
@@ -23,6 +49,23 @@ const shuffleDeck = (deck: Card[]): Card[] => {
 
 const hasEligibleMoves = (player: Player, targetNumber: number): boolean => {
   for (const card of player.hand) {
+    // Special card logic for eligibility
+    if (card.type === 'golden') return true; // Can always play golden card (assuming player chooses valid number)
+    
+    if (card.type === 'permanent' && card.permanentValue) {
+       if (player.score + card.permanentValue > targetNumber) continue;
+       if (!player.cleanSlate && player.row.length > 0 && player.row[player.row.length - 1].value === card.permanentValue) continue;
+       return true;
+    }
+
+    if (card.type === 'sequence' && card.sequence) {
+       const seqSum = card.sequence.reduce((a, b) => a + b, 0);
+       if (player.score + seqSum > targetNumber) continue;
+       if (!player.cleanSlate && player.row.length > 0 && player.row[player.row.length - 1].value === card.sequence[0]) continue;
+       return true;
+    }
+
+    // Normal card logic
     if (player.score + card.value > targetNumber) {
       continue;
     }
@@ -41,6 +84,17 @@ export const reshuffleDeck = (gameState: GameState): GameState => {
   let cardsToReshuffle: Card[] = [...gameState.deck];
   
   const newPlayers = gameState.players.map(p => {
+    // Permanent cards stay in hand? No, reshuffle usually happens when deck is empty.
+    // But permanent cards are permanent in hand. They shouldn't be discarded to reshuffle unless the game logic dictates.
+    // However, reshuffleDeck is called when deck is empty to refill it from discard pile (which we simulate by taking from players? No, this logic seems to take everything back?)
+    // The current reshuffleDeck implementation takes ALL cards from hands and rows to reform the deck.
+    // If we want permanent cards to persist, we should filter them out from being reshuffled if they are in hand.
+    // But wait, reshuffleDeck here seems to be a "restart round" or "refill deck" logic that is quite aggressive (taking hands too).
+    // Actually, looking at drawCard: if (state.deck.length === 0) { state = reshuffleDeck(state); }
+    // This reshuffleDeck implementation resets the game state effectively (clearing rows/hands).
+    // This seems to be a "Deck Empty -> Reset Hands/Rows" logic which is a bit unusual for standard card games but might be the rule here.
+    // If so, we should probably keep it consistent.
+    
     cardsToReshuffle.push(...p.hand);
     cardsToReshuffle.push(...p.row);
     return {
@@ -96,7 +150,7 @@ export const drawCard = (gameState: GameState): GameState => {
   const card = newDeck.pop()!;
 
   let pendingTargetDecision = false;
-  if (card.value >= 4 && card.value <= 6) {
+  if (card.type === 'number' && card.value >= 4 && card.value <= 6) {
     pendingTargetDecision = true;
   }
 
@@ -151,7 +205,7 @@ export const addDrawnCardToTarget = (gameState: GameState): GameState => {
   return newState;
 };
 
-export const playCard = (gameState: GameState, cardId: string): GameState => {
+export const playCard = (gameState: GameState, cardId: string, selectedValue?: number): GameState => {
   const { players, activePlayerIndex, targetNumber } = gameState;
   if (!gameState.hasDrawnCardThisTurn) return gameState;
 
@@ -160,7 +214,215 @@ export const playCard = (gameState: GameState, cardId: string): GameState => {
   if (cardIndex === -1) return gameState;
 
   const card = player.hand[cardIndex];
+  
+  // Special Card Logic
+  if (card.type === 'golden') {
+    if (!selectedValue) return gameState; // Should have a selected value
+    
+    // Golden card logic: Can be any number 1-9.
+    // "They can add it to their row even if they have not completed the one, two, three cycle."
+    // "They can add it to their row whenever they want."
+    // Assuming consecutive duplicate rule still applies to the *value*.
+    
+    if (!player.cleanSlate && player.row.length > 0 && player.row[player.row.length - 1].value === selectedValue) {
+      return gameState;
+    }
+    
+    if (player.score + selectedValue > targetNumber) {
+      return gameState;
+    }
 
+    const newHand = [...player.hand];
+    newHand.splice(cardIndex, 1);
+
+    // Create a "played" version of the golden card with the selected value
+    const playedCard = { ...card, value: selectedValue };
+    
+    const newRow = [...player.row, playedCard];
+    const newScore = player.score + selectedValue;
+    
+    // Update cycle tracker if applicable (1, 2, 3)
+    let newUnlockedNumbers = { ...player.unlockedNumbers };
+    let newHighCardsUnlocked = player.highCardsUnlocked;
+
+    if (selectedValue >= 1 && selectedValue <= 3) {
+      newUnlockedNumbers[selectedValue as 1 | 2 | 3] = true;
+    }
+    if (newUnlockedNumbers[1] && newUnlockedNumbers[2] && newUnlockedNumbers[3]) {
+      newHighCardsUnlocked = true;
+    }
+    
+    // Golden card doesn't reset cycle if > 3 because it bypasses rules? 
+    // "They can add it to their row even if they have not completed the one, two, three cycle."
+    // It doesn't explicitly say it *breaks* the cycle if they pick 5. 
+    // But usually playing a high card resets the cycle. 
+    // Let's assume if they pick > 3, it behaves like a high card regarding cycle reset.
+    if (selectedValue > 3) {
+       newUnlockedNumbers = { 1: false, 2: false, 3: false };
+       newHighCardsUnlocked = false;
+    }
+
+    const newPlayer = {
+      ...player,
+      hand: newHand,
+      row: newRow,
+      score: newScore,
+      unlockedNumbers: newUnlockedNumbers,
+      highCardsUnlocked: newHighCardsUnlocked,
+      cleanSlate: false,
+    };
+    
+    const newPlayers = [...players];
+    newPlayers[activePlayerIndex] = newPlayer;
+    
+    let newState: GameState = { ...gameState, players: newPlayers, playsThisTurn: gameState.playsThisTurn + 1 };
+    
+    // Limit Lift Logic for Golden Card?
+    if (selectedValue >= 4) {
+       const opponentIndex = (activePlayerIndex + 1) % newState.players.length;
+       const opponent = { ...newState.players[opponentIndex] };
+       opponent.limitLifted = true;
+       const newPlayersWithLimitLift = [...newState.players];
+       newPlayersWithLimitLift[opponentIndex] = opponent;
+       newState.players = newPlayersWithLimitLift;
+       newState.logs.push(`${newPlayer.name} lifted the limit for ${opponent.name} with a Golden Card!`);
+    }
+
+    if (newScore === targetNumber) {
+      newPlayer.persistentScore += 1;
+      newState.status = 'roundOver';
+      newState.winnerId = newPlayer.id;
+      return newState;
+    }
+
+    const maxPlays = newPlayer.limitLifted ? Infinity : 2;
+    if (newState.playsThisTurn >= maxPlays || !hasEligibleMoves(newPlayer, targetNumber)) {
+      newState = endTurn(newState);
+    }
+    return newState;
+  }
+
+  if (card.type === 'permanent') {
+    const value = card.permanentValue!;
+    
+    if (!player.cleanSlate && player.row.length > 0 && player.row[player.row.length - 1].value === value) {
+      return gameState;
+    }
+    if (player.score + value > targetNumber) {
+      return gameState;
+    }
+    
+    // Permanent card stays in hand!
+    // We add a copy to the row.
+    const playedCard = { ...card, id: createId(), value: value }; // New ID for the row instance
+    
+    const newRow = [...player.row, playedCard];
+    const newScore = player.score + value;
+    
+    let newUnlockedNumbers = { ...player.unlockedNumbers };
+    let newHighCardsUnlocked = player.highCardsUnlocked;
+
+    if (value >= 1 && value <= 3) {
+      newUnlockedNumbers[value as 1 | 2 | 3] = true;
+    }
+    if (newUnlockedNumbers[1] && newUnlockedNumbers[2] && newUnlockedNumbers[3]) {
+      newHighCardsUnlocked = true;
+    }
+
+    const newPlayer = {
+      ...player,
+      // Hand is NOT modified
+      row: newRow,
+      score: newScore,
+      unlockedNumbers: newUnlockedNumbers,
+      highCardsUnlocked: newHighCardsUnlocked,
+      cleanSlate: false,
+    };
+    
+    const newPlayers = [...players];
+    newPlayers[activePlayerIndex] = newPlayer;
+    
+    let newState: GameState = { ...gameState, players: newPlayers, playsThisTurn: gameState.playsThisTurn + 1 };
+    
+    if (newScore === targetNumber) {
+      newPlayer.persistentScore += 1;
+      newState.status = 'roundOver';
+      newState.winnerId = newPlayer.id;
+      return newState;
+    }
+
+    const maxPlays = newPlayer.limitLifted ? Infinity : 2;
+    if (newState.playsThisTurn >= maxPlays || !hasEligibleMoves(newPlayer, targetNumber)) {
+      newState = endTurn(newState);
+    }
+    return newState;
+  }
+
+  if (card.type === 'sequence') {
+    const sequence = card.sequence!;
+    
+    // Check first number against last card
+    if (!player.cleanSlate && player.row.length > 0 && player.row[player.row.length - 1].value === sequence[0]) {
+      return gameState;
+    }
+    
+    const seqSum = sequence.reduce((a, b) => a + b, 0);
+    if (player.score + seqSum > targetNumber) {
+      return gameState;
+    }
+
+    const newHand = [...player.hand];
+    newHand.splice(cardIndex, 1);
+    
+    // Add all cards in sequence to row
+    const cardsToAdd = sequence.map(val => ({ id: createId(), value: val, type: 'number' as const }));
+    const newRow = [...player.row, ...cardsToAdd];
+    const newScore = player.score + seqSum;
+    
+    let newUnlockedNumbers = { ...player.unlockedNumbers };
+    let newHighCardsUnlocked = player.highCardsUnlocked;
+
+    // Process each number in sequence for unlocking
+    sequence.forEach(val => {
+      if (val >= 1 && val <= 3) {
+        newUnlockedNumbers[val as 1 | 2 | 3] = true;
+      }
+    });
+    
+    if (newUnlockedNumbers[1] && newUnlockedNumbers[2] && newUnlockedNumbers[3]) {
+      newHighCardsUnlocked = true;
+    }
+
+    const newPlayer = {
+      ...player,
+      hand: newHand,
+      row: newRow,
+      score: newScore,
+      unlockedNumbers: newUnlockedNumbers,
+      highCardsUnlocked: newHighCardsUnlocked,
+      cleanSlate: false,
+    };
+    
+    const newPlayers = [...players];
+    newPlayers[activePlayerIndex] = newPlayer;
+    
+    let newState: GameState = { ...gameState, players: newPlayers, playsThisTurn: gameState.playsThisTurn + 1 };
+    
+    if (newScore === targetNumber) {
+      newPlayer.persistentScore += 1;
+      newState.status = 'roundOver';
+      newState.winnerId = newPlayer.id;
+      return newState;
+    }
+
+    const maxPlays = newPlayer.limitLifted ? Infinity : 2;
+    if (newState.playsThisTurn >= maxPlays || !hasEligibleMoves(newPlayer, targetNumber)) {
+      newState = endTurn(newState);
+    }
+    return newState;
+  }
+
+  // Normal Card Logic
   if (!player.cleanSlate && player.row.length > 0 && player.row[player.row.length - 1].value === card.value) {
     return gameState;
   }
@@ -244,6 +506,21 @@ export const findBestCardToPlay = (player: Player, targetNumber: number): Card |
   const lastCardInRow = row.length > 0 ? row[row.length - 1] : null;
 
   const isValidCard = (c: Card) => {
+    if (c.type === 'golden') return true; // AI can always play golden card
+    
+    if (c.type === 'permanent' && c.permanentValue) {
+       if (score + c.permanentValue > targetNumber) return false;
+       if (!player.cleanSlate && lastCardInRow && lastCardInRow.value === c.permanentValue) return false;
+       return true;
+    }
+
+    if (c.type === 'sequence' && c.sequence) {
+       const seqSum = c.sequence.reduce((a, b) => a + b, 0);
+       if (score + seqSum > targetNumber) return false;
+       if (!player.cleanSlate && lastCardInRow && lastCardInRow.value === c.sequence[0]) return false;
+       return true;
+    }
+
     if (score + c.value > targetNumber) return false;
     if (!player.cleanSlate && lastCardInRow && lastCardInRow.value === c.value) return false;
     if (c.value > 3 && !highCardsUnlocked) return false;
@@ -253,38 +530,44 @@ export const findBestCardToPlay = (player: Player, targetNumber: number): Card |
   // 1. Prioritize completing the 1-2-3 cycle
   for (let i = 1; i <= 3; i++) {
     if (!unlockedNumbers[i as 1 | 2 | 3]) {
-      const cardToPlay = hand.find(c => c.value === i && isValidCard(c));
-      if (cardToPlay) {
-        return cardToPlay;
-      }
+      // Check for normal cards
+      const cardToPlay = hand.find(c => c.value === i && (!c.type || c.type === 'number') && isValidCard(c));
+      if (cardToPlay) return cardToPlay;
+      
+      // Check for permanent cards
+      const permCard = hand.find(c => c.type === 'permanent' && c.permanentValue === i && isValidCard(c));
+      if (permCard) return permCard;
     }
   }
 
   // 2. If cycle is complete, consider playing a high card
   if (highCardsUnlocked) {
-    const highCard = hand.find(c => c.value > 3 && isValidCard(c));
-    if (highCard) {
-      return highCard;
-    }
+    const highCard = hand.find(c => c.value > 3 && (!c.type || c.type === 'number') && isValidCard(c));
+    if (highCard) return highCard;
   }
+  
+  // 3. Play Sequence cards if valid
+  const seqCard = hand.find(c => c.type === 'sequence' && isValidCard(c));
+  if (seqCard) return seqCard;
 
-  // 3. If no high card is suitable, play any other valid low card
+  // 4. Play Golden card if available
+  const goldenCard = hand.find(c => c.type === 'golden');
+  if (goldenCard) return goldenCard;
+
+  // 5. If no high card is suitable, play any other valid low card
   const lowCard = hand.find(c => c.value <= 3 && isValidCard(c));
-  if (lowCard) {
-    return lowCard;
-  }
+  if (lowCard) return lowCard;
 
   return null;
 };
 
-
 export const startNextRound = (gameState: GameState): GameState => {
-  const { players, round } = gameState;
+  const { players, round, gameMode } = gameState;
 
-  let deck = shuffleDeck(createDeck());
+  let deck = shuffleDeck(createDeck(gameMode));
 
   const targetLineup = deck.splice(0, TARGET_LINEUP_SIZE);
-  const targetNumber = targetLineup.reduce((sum, card) => sum + card.value, 0);
+  const targetNumber = targetLineup.reduce((sum, card) => sum + (card.value || 0), 0); // Handle golden cards having 0 value initially
 
   const newPlayers: Player[] = players.map(p => ({
     ...p,
@@ -315,11 +598,11 @@ export const startNextRound = (gameState: GameState): GameState => {
   };
 };
 
-export const initGame = (isStrategicMode: boolean = false): GameState => {
-  let deck = shuffleDeck(createDeck());
+export const initGame = (isStrategicMode: boolean = false, gameMode: 'normal' | 'special' = 'normal'): GameState => {
+  let deck = shuffleDeck(createDeck(gameMode));
 
   const targetLineup = deck.splice(0, TARGET_LINEUP_SIZE);
-  const targetNumber = targetLineup.reduce((sum, card) => sum + card.value, 0);
+  const targetNumber = targetLineup.reduce((sum, card) => sum + (card.value || 0), 0);
 
   const players: Player[] = [
     {
@@ -369,5 +652,6 @@ export const initGame = (isStrategicMode: boolean = false): GameState => {
     round: 1,
     pendingTargetDecision: false,
     isStrategicMode,
+    gameMode,
   };
 };

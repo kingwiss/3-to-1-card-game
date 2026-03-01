@@ -280,7 +280,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           case "drawCard": newState = drawCard(newState); break;
           case "addDrawnCardToHand": newState = addDrawnCardToHand(newState); break;
           case "addDrawnCardToTarget": newState = addDrawnCardToTarget(newState); break;
-          case "playCard": newState = playCard(newState, action.cardId); break;
+          case "playCard": newState = playCard(newState, action.cardId, action.selectedValue); break;
           case "endTurn": newState = endTurn(newState); break;
           case "startNextRound": newState = startNextRound(newState); break;
           case "restartGame":

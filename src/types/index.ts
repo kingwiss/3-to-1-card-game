@@ -1,6 +1,11 @@
+export type CardType = 'number' | 'golden' | 'permanent' | 'sequence';
+
 export interface Card {
   id: string;
   value: number;
+  type?: CardType;
+  sequence?: number[];
+  permanentValue?: number;
 }
 
 export interface Player {
@@ -40,6 +45,7 @@ export interface GameState {
   winnerId: number | null;
   logs: string[];
   mode: string;
+  gameMode: 'normal' | 'special';
   hasDrawnCardThisTurn: boolean;
   drawnCard: Card | null;
   round: number;
