@@ -28,13 +28,18 @@ const Game: React.FC = () => {
   const [floatingModeText, setFloatingModeText] = useState<string | null>(null);
   const [isPremium, setIsPremium] = useState(false);
   const [themeColor, setThemeColor] = useState('slate');
-  const colorRotation = useMotionValue(0);
   const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
   const [isLeftMenuOpen, setIsLeftMenuOpen] = useState(false);
   const [isGameModeModalOpen, setIsGameModeModalOpen] = useState(false);
   const [isGoldenCardModalOpen, setIsGoldenCardModalOpen] = useState(false);
   const [selectedGoldenCardId, setSelectedGoldenCardId] = useState<string | null>(null);
   const [goldenCardValue, setGoldenCardValue] = useState(5);
+
+  useEffect(() => {
+    if (!isLeftMenuOpen) {
+      setIsColorPickerOpen(false);
+    }
+  }, [isLeftMenuOpen]);
 
   useEffect(() => {
     document.body.className = `theme-${themeColor}`;
@@ -672,34 +677,17 @@ const Game: React.FC = () => {
                         {isColorPickerOpen && (
                           <motion.div 
                             className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-0 h-0 z-40"
-                            style={{ rotate: colorRotation }}
-                            onPan={(e, info) => {
-                              const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                              const centerX = rect.left + rect.width / 2;
-                              const centerY = rect.top + rect.height / 2;
-                              
-                              const prevX = info.point.x - info.delta.x - centerX;
-                              const prevY = info.point.y - info.delta.y - centerY;
-                              
-                              const currX = info.point.x - centerX;
-                              const currY = info.point.y - centerY;
-                              
-                              const prevAngle = Math.atan2(prevY, prevX);
-                              const currAngle = Math.atan2(currY, currX);
-                              
-                              let deltaAngle = (currAngle - prevAngle) * (180 / Math.PI);
-                              
-                              if (deltaAngle > 180) deltaAngle -= 360;
-                              if (deltaAngle < -180) deltaAngle += 360;
-                              
-                              colorRotation.set(colorRotation.get() + deltaAngle);
-                            }}
                           >
-                            <div className="absolute -left-20 -top-20 w-40 h-40 rounded-full cursor-grab active:cursor-grabbing" />
                             {['slate', 'blue', 'red', 'emerald', 'purple', 'orange', 'pink', 'cyan'].map((color, index) => {
                               const totalColors = 8;
-                              const angle = (index * 360) / totalColors;
-                              const radius = 60; // Distance from center
+                              // Wider arc from -100 to 10 degrees (110 degree span)
+                              // This fans out towards top-right from the bottom-left button
+                              const startAngle = -100;
+                              const endAngle = 10;
+                              const span = endAngle - startAngle;
+                              const angle = startAngle + (index * span) / (totalColors - 1);
+                              
+                              const radius = 110; // Increased radius for better spacing
                               const x = Math.cos((angle * Math.PI) / 180) * radius;
                               const y = Math.sin((angle * Math.PI) / 180) * radius;
 
@@ -709,8 +697,8 @@ const Game: React.FC = () => {
                                   initial={{ opacity: 0, x: 0, y: 0, scale: 0 }}
                                   animate={{ opacity: 1, x, y, scale: 1 }}
                                   exit={{ opacity: 0, x: 0, y: 0, scale: 0 }}
-                                  transition={{ type: "spring", stiffness: 300, damping: 20, delay: index * 0.03 }}
-                                  whileHover={{ scale: 1.2 }}
+                                  transition={{ type: "spring", stiffness: 300, damping: 20, delay: index * 0.05 }}
+                                  whileHover={{ scale: 1.2, zIndex: 50 }}
                                   whileTap={{ scale: 0.9 }}
                                   onClick={() => {
                                     if (isPremium) {
@@ -718,7 +706,7 @@ const Game: React.FC = () => {
                                     }
                                     setThemeColor(color);
                                   }}
-                                  className={`absolute w-10 h-10 -ml-5 -mt-5 rounded-full border-2 shadow-lg flex items-center justify-center ${themeColor === color ? 'border-white scale-110' : 'border-transparent'}`}
+                                  className={`absolute w-10 h-10 -ml-5 -mt-5 rounded-full border-2 shadow-lg flex items-center justify-center ${themeColor === color ? 'border-white scale-110 z-10' : 'border-transparent'}`}
                                   style={{
                                     backgroundColor: 
                                       color === 'slate' ? '#64748b' :
@@ -1070,38 +1058,13 @@ const Game: React.FC = () => {
               {/* Scrollable Content */}
               <div className="p-4 md:p-6 overflow-y-auto">
                 <div className="grid md:grid-cols-2 gap-6">
-                  {/* Normal Mode */}
-                  <div 
-                    onClick={() => {
-                      setGameState(initGame(gameState.isStrategicMode, 'normal'));
-                      setIsGameModeModalOpen(false);
-                    }}
-                    className={`cursor-pointer group relative overflow-hidden rounded-xl border-2 p-6 transition-all duration-300 hover:scale-[1.02] ${gameMode === 'normal' ? 'border-theme-500 bg-theme-900/50 ring-2 ring-theme-500/50' : 'border-[var(--theme-700)] bg-[var(--theme-800)] hover:border-theme-400'}`}
-                  >
-                    <div className="absolute top-0 right-0 p-2 bg-theme-600 text-white text-xs font-bold rounded-bl-lg">CLASSIC</div>
-                    <h3 className="text-xl font-bold text-white mb-2">Normal Mode</h3>
-                    <p className="text-sm text-theme-300 mb-4">The classic strategic experience. Master the 1-2-3 cycle and use high cards wisely.</p>
-                    
-                    <div className="flex justify-center gap-2 mb-4 opacity-80 group-hover:opacity-100 transition-opacity">
-                      <div className="w-10 h-14 bg-theme-800 border border-theme-600 rounded flex items-center justify-center text-white font-bold">1</div>
-                      <div className="w-10 h-14 bg-theme-800 border border-theme-600 rounded flex items-center justify-center text-white font-bold">2</div>
-                      <div className="w-10 h-14 bg-theme-800 border border-theme-600 rounded flex items-center justify-center text-white font-bold">3</div>
-                    </div>
-                    
-                    <ul className="text-xs text-theme-400 space-y-1 list-disc list-inside">
-                      <li>Standard 1-2-3 Cycle Rules</li>
-                      <li>4-5-6 Target Decisions</li>
-                      <li>Strategic or Mandatory Play</li>
-                    </ul>
-                  </div>
-
                   {/* Special Mode */}
                   <div 
                     onClick={() => {
                       setGameState(initGame(gameState.isStrategicMode, 'special'));
                       setIsGameModeModalOpen(false);
                     }}
-                    className={`cursor-pointer group relative overflow-hidden rounded-xl border-2 p-6 transition-all duration-300 hover:scale-[1.02] ${gameMode === 'special' ? 'border-purple-500 bg-purple-900/20 ring-2 ring-purple-500/50' : 'border-[var(--theme-700)] bg-[var(--theme-800)] hover:border-purple-400'}`}
+                    className={`cursor-pointer group relative overflow-hidden rounded-xl border-2 p-6 transition-all duration-300 hover:scale-[1.02] flex flex-col ${gameMode === 'special' ? 'border-purple-500 bg-purple-900/20 ring-2 ring-purple-500/50' : 'border-[var(--theme-700)] bg-[var(--theme-800)] hover:border-purple-400'}`}
                   >
                     <div className="absolute top-0 right-0 p-2 bg-purple-600 text-white text-xs font-bold rounded-bl-lg flex items-center gap-1">
                       <Sparkles size={12} /> PREMIUM
@@ -1122,11 +1085,48 @@ const Game: React.FC = () => {
                       </div>
                     </div>
 
-                    <ul className="text-xs text-theme-400 space-y-1 list-disc list-inside">
+                    <ul className="text-xs text-theme-400 space-y-1 list-disc list-inside mb-4">
                       <li><span className="text-yellow-400 font-bold">Golden Cards:</span> Choose any value (1-9)!</li>
                       <li><span className="text-purple-400 font-bold">Permanent Cards:</span> Reusable cards!</li>
                       <li><span className="text-blue-400 font-bold">Sequence Cards:</span> Play multiple numbers!</li>
                     </ul>
+
+                    <div className="mt-auto">
+                      <button className="w-full py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg transition-colors shadow-lg">
+                        Play Special Cards
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Normal Mode */}
+                  <div 
+                    onClick={() => {
+                      setGameState(initGame(gameState.isStrategicMode, 'normal'));
+                      setIsGameModeModalOpen(false);
+                    }}
+                    className={`cursor-pointer group relative overflow-hidden rounded-xl border-2 p-6 transition-all duration-300 hover:scale-[1.02] flex flex-col ${gameMode === 'normal' ? 'border-theme-500 bg-theme-900/50 ring-2 ring-theme-500/50' : 'border-[var(--theme-700)] bg-[var(--theme-800)] hover:border-theme-400'}`}
+                  >
+                    <div className="absolute top-0 right-0 p-2 bg-theme-600 text-white text-xs font-bold rounded-bl-lg">CLASSIC</div>
+                    <h3 className="text-xl font-bold text-white mb-2">Normal Mode</h3>
+                    <p className="text-sm text-theme-300 mb-4">The classic strategic experience. Master the 1-2-3 cycle and use high cards wisely.</p>
+                    
+                    <div className="flex justify-center gap-2 mb-4 opacity-80 group-hover:opacity-100 transition-opacity">
+                      <div className="w-10 h-14 bg-theme-800 border border-theme-600 rounded flex items-center justify-center text-white font-bold">1</div>
+                      <div className="w-10 h-14 bg-theme-800 border border-theme-600 rounded flex items-center justify-center text-white font-bold">2</div>
+                      <div className="w-10 h-14 bg-theme-800 border border-theme-600 rounded flex items-center justify-center text-white font-bold">3</div>
+                    </div>
+                    
+                    <ul className="text-xs text-theme-400 space-y-1 list-disc list-inside mb-4">
+                      <li>Standard 1-2-3 Cycle Rules</li>
+                      <li>4-5-6 Target Decisions</li>
+                      <li>Strategic or Mandatory Play</li>
+                    </ul>
+
+                    <div className="mt-auto">
+                      <button className="w-full py-2 bg-[var(--theme-600)] hover:bg-[var(--theme-500)] text-white font-bold rounded-lg transition-colors shadow-lg">
+                        Play Normal Mode
+                      </button>
+                    </div>
                   </div>
                 </div>
 
