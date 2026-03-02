@@ -11,6 +11,72 @@ import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-mo
 import { playSound } from '../utils/sound';
 import { ChevronUp, ChevronDown, Users, User, BookOpen, Star, Palette, X, Sparkles, LogIn, LogOut } from 'lucide-react';
 
+const ColorButton = ({ color, index, baseAngle, rotation, themeColor, setThemeColor, isPremium }: any) => {
+  const x = useTransform(rotation, (r) => {
+    const angle = baseAngle + r;
+    const radius = 90;
+    return Math.cos((angle * Math.PI) / 180) * radius;
+  });
+  
+  const y = useTransform(rotation, (r) => {
+    const angle = baseAngle + r;
+    const radius = 90;
+    return Math.sin((angle * Math.PI) / 180) * radius;
+  });
+
+  const scale = useTransform(rotation, (r) => {
+    const angle = baseAngle + r;
+    // Scale down items at the edges of the visible arc (-130 to 10 degrees)
+    if (angle < -130 || angle > 10) return 0;
+    // Smooth scaling at edges
+    if (angle < -110) return Math.max(0, 1 - ((-110 - angle) / 20));
+    if (angle > -10) return Math.max(0, 1 - ((angle - -10) / 20));
+    return 1;
+  });
+  
+  const opacity = useTransform(rotation, (r) => {
+    const angle = baseAngle + r;
+    if (angle < -130 || angle > 10) return 0;
+    if (angle < -110) return Math.max(0, 1 - ((-110 - angle) / 20));
+    if (angle > -10) return Math.max(0, 1 - ((angle - -10) / 20));
+    return 1;
+  });
+
+  return (
+    <motion.button
+      style={{ x, y, scale, opacity }}
+      initial={{ scale: 0, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      exit={{ scale: 0, opacity: 0 }}
+      transition={{ type: "spring", stiffness: 300, damping: 20, delay: index * 0.05 }}
+      whileHover={{ scale: 1.2, zIndex: 50 }}
+      whileTap={{ scale: 0.9 }}
+      onClick={() => {
+        if (isPremium) playSound('tick');
+        setThemeColor(color);
+      }}
+      className={`absolute w-10 h-10 -ml-5 -mt-5 rounded-full border-2 shadow-lg flex items-center justify-center ${themeColor === color ? 'border-white z-10' : 'border-transparent'}`}
+    >
+      <div 
+        className="w-full h-full rounded-full relative"
+        style={{
+          backgroundColor: 
+            color === 'slate' ? '#64748b' :
+            color === 'blue' ? '#3b82f6' :
+            color === 'red' ? '#ef4444' :
+            color === 'emerald' ? '#10b981' :
+            color === 'purple' ? '#a855f7' :
+            color === 'orange' ? '#f97316' :
+            color === 'pink' ? '#ec4899' :
+            '#06b6d4'
+        }}
+      >
+        {themeColor === color && <div className="absolute inset-0 m-auto w-2 h-2 bg-white rounded-full" />}
+      </div>
+    </motion.button>
+  );
+};
+
 const Game: React.FC = () => {
   const { gameState, setGameState, sendAction, isPvP, setIsPvP, isWaiting, matchmakingStatus, playerIndex, startMatchmaking, cancelMatchmaking, disconnectPvP } = useGame();
   const { user, userProfile } = useAuth();
@@ -28,6 +94,7 @@ const Game: React.FC = () => {
   const [floatingModeText, setFloatingModeText] = useState<string | null>(null);
   const [isPremium, setIsPremium] = useState(false);
   const [themeColor, setThemeColor] = useState('slate');
+  const colorRotation = useMotionValue(0);
   const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
   const [isLeftMenuOpen, setIsLeftMenuOpen] = useState(false);
   const [isGameModeModalOpen, setIsGameModeModalOpen] = useState(false);
@@ -677,50 +744,43 @@ const Game: React.FC = () => {
                         {isColorPickerOpen && (
                           <motion.div 
                             className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-0 h-0 z-40"
+                            onPan={(e, info) => {
+                              // Simple vertical drag to rotate
+                              const newRotation = colorRotation.get() + info.delta.y * 0.5;
+                              // Clamp rotation to keep items within reasonable view
+                              // 8 items * 35 deg = 280 deg total span
+                              // Visible window is roughly 120 deg
+                              // So we can scroll about 160 deg
+                              if (newRotation > 20 && newRotation < 200) {
+                                colorRotation.set(newRotation);
+                              }
+                            }}
+                            style={{ touchAction: 'none' }} // Prevent browser scrolling while dragging
                           >
+                            {/* Invisible hit area for dragging */}
+                            <div className="absolute -left-32 -top-32 w-64 h-64 rounded-full cursor-grab active:cursor-grabbing" />
+                            
                             {['slate', 'blue', 'red', 'emerald', 'purple', 'orange', 'pink', 'cyan'].map((color, index) => {
                               const totalColors = 8;
-                              // Wider arc from -100 to 10 degrees (110 degree span)
-                              // This fans out towards top-right from the bottom-left button
-                              const startAngle = -100;
-                              const endAngle = 10;
-                              const span = endAngle - startAngle;
-                              const angle = startAngle + (index * span) / (totalColors - 1);
+                              // Spacing of 35 degrees for better separation
+                              const spacing = 35;
+                              // Initial offset to start the arc
+                              const startOffset = -120; 
                               
-                              const radius = 110; // Increased radius for better spacing
-                              const x = Math.cos((angle * Math.PI) / 180) * radius;
-                              const y = Math.sin((angle * Math.PI) / 180) * radius;
-
+                              // Calculate dynamic position based on rotation
+                              const baseAngle = startOffset + (index * spacing);
+                              
                               return (
-                                <motion.button
+                                <ColorButton 
                                   key={color}
-                                  initial={{ opacity: 0, x: 0, y: 0, scale: 0 }}
-                                  animate={{ opacity: 1, x, y, scale: 1 }}
-                                  exit={{ opacity: 0, x: 0, y: 0, scale: 0 }}
-                                  transition={{ type: "spring", stiffness: 300, damping: 20, delay: index * 0.05 }}
-                                  whileHover={{ scale: 1.2, zIndex: 50 }}
-                                  whileTap={{ scale: 0.9 }}
-                                  onClick={() => {
-                                    if (isPremium) {
-                                      playSound('tick');
-                                    }
-                                    setThemeColor(color);
-                                  }}
-                                  className={`absolute w-10 h-10 -ml-5 -mt-5 rounded-full border-2 shadow-lg flex items-center justify-center ${themeColor === color ? 'border-white scale-110 z-10' : 'border-transparent'}`}
-                                  style={{
-                                    backgroundColor: 
-                                      color === 'slate' ? '#64748b' :
-                                      color === 'blue' ? '#3b82f6' :
-                                      color === 'red' ? '#ef4444' :
-                                      color === 'emerald' ? '#10b981' :
-                                      color === 'purple' ? '#a855f7' :
-                                      color === 'orange' ? '#f97316' :
-                                      color === 'pink' ? '#ec4899' :
-                                      '#06b6d4'
-                                  }}
-                                >
-                                  {themeColor === color && <div className="w-2 h-2 bg-white rounded-full" />}
-                                </motion.button>
+                                  color={color}
+                                  index={index}
+                                  baseAngle={baseAngle}
+                                  rotation={colorRotation}
+                                  themeColor={themeColor}
+                                  setThemeColor={setThemeColor}
+                                  isPremium={isPremium}
+                                />
                               );
                             })}
                           </motion.div>
