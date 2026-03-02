@@ -59,6 +59,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
+      
+      if (currentUser) {
+        const cachedProfile = localStorage.getItem(`profile_${currentUser.uid}`);
+        if (cachedProfile) {
+          try {
+            setUserProfile(JSON.parse(cachedProfile));
+          } catch (e) {
+            console.error('Failed to parse cached profile', e);
+          }
+        }
+      } else {
+        setUserProfile(null);
+      }
+      
+      setLoading(false);
+      clearTimeout(loadingTimeout);
+      
       try {
         if (currentUser) {
           const docRef = doc(db, 'users', currentUser.uid);
@@ -147,9 +164,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       } catch (error) {
         console.error("Error fetching user profile:", error);
-      } finally {
-        setLoading(false);
-        clearTimeout(loadingTimeout);
       }
     });
 

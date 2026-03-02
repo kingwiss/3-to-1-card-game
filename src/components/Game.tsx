@@ -7,7 +7,7 @@ import Card from './Card';
 import Profile from './Profile';
 import Login from './Login';
 import PremiumModal from './PremiumModal';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
 import { playSound } from '../utils/sound';
 import { ChevronUp, ChevronDown, Users, User, BookOpen, Star, Palette, X, Sparkles, LogIn, LogOut } from 'lucide-react';
 
@@ -28,6 +28,7 @@ const Game: React.FC = () => {
   const [floatingModeText, setFloatingModeText] = useState<string | null>(null);
   const [isPremium, setIsPremium] = useState(false);
   const [themeColor, setThemeColor] = useState('slate');
+  const colorRotation = useMotionValue(0);
   const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
   const [isLeftMenuOpen, setIsLeftMenuOpen] = useState(false);
   const [isGameModeModalOpen, setIsGameModeModalOpen] = useState(false);
@@ -646,7 +647,32 @@ const Game: React.FC = () => {
                       
                       <AnimatePresence>
                         {isColorPickerOpen && (
-                          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-0 h-0 z-40">
+                          <motion.div 
+                            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-0 h-0 z-40"
+                            style={{ rotate: colorRotation }}
+                            onPan={(e, info) => {
+                              const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                              const centerX = rect.left + rect.width / 2;
+                              const centerY = rect.top + rect.height / 2;
+                              
+                              const prevX = info.point.x - info.delta.x - centerX;
+                              const prevY = info.point.y - info.delta.y - centerY;
+                              
+                              const currX = info.point.x - centerX;
+                              const currY = info.point.y - centerY;
+                              
+                              const prevAngle = Math.atan2(prevY, prevX);
+                              const currAngle = Math.atan2(currY, currX);
+                              
+                              let deltaAngle = (currAngle - prevAngle) * (180 / Math.PI);
+                              
+                              if (deltaAngle > 180) deltaAngle -= 360;
+                              if (deltaAngle < -180) deltaAngle += 360;
+                              
+                              colorRotation.set(colorRotation.get() + deltaAngle);
+                            }}
+                          >
+                            <div className="absolute -left-20 -top-20 w-40 h-40 rounded-full cursor-grab active:cursor-grabbing" />
                             {['slate', 'blue', 'red', 'emerald', 'purple', 'orange', 'pink', 'cyan'].map((color, index) => {
                               const totalColors = 8;
                               const angle = (index * 360) / totalColors;
@@ -686,7 +712,7 @@ const Game: React.FC = () => {
                                 </motion.button>
                               );
                             })}
-                          </div>
+                          </motion.div>
                         )}
                       </AnimatePresence>
                     </div>
