@@ -9,7 +9,7 @@ import Login from './Login';
 import PremiumModal from './PremiumModal';
 import { motion, AnimatePresence } from 'framer-motion';
 import { playSound } from '../utils/sound';
-import { ChevronUp, ChevronDown, Users, User, BookOpen, Star, Palette, X, Sparkles, LogIn, LogOut } from 'lucide-react';
+import { ChevronUp, ChevronDown, Users, User, BookOpen, Star, Palette, X, Sparkles, LogIn, LogOut, Gamepad2 } from 'lucide-react';
 
 const ColorButton = ({ color, index, angle, themeColor, setThemeColor, isPremium }: any) => {
   const radius = 90;
@@ -65,7 +65,7 @@ const Game: React.FC = () => {
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [floatingModeText, setFloatingModeText] = useState<string | null>(null);
-  const [isPremium, setIsPremium] = useState(false);
+  const [isPremium, setIsPremium] = useState(true);
   const [themeColor, setThemeColor] = useState('slate');
   const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
   const [isLeftMenuOpen, setIsLeftMenuOpen] = useState(false);
@@ -483,6 +483,28 @@ const Game: React.FC = () => {
           <div className="relative w-28 h-28 flex items-center justify-center floating">
             {/* Bubble Background */}
             <div className="absolute inset-0 rounded-full bubble-container overflow-hidden z-0">
+              {/* Special Mode Radiating Effect */}
+              {gameState.gameMode === 'special' && (
+                <div className="absolute inset-0 z-0">
+                  <motion.div
+                    animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.6, 0.3] }}
+                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                    className="absolute inset-0 rounded-full blur-md"
+                    style={{ 
+                      backgroundColor: 
+                        themeColor === 'slate' ? '#64748b' :
+                        themeColor === 'blue' ? '#3b82f6' :
+                        themeColor === 'red' ? '#ef4444' :
+                        themeColor === 'emerald' ? '#10b981' :
+                        themeColor === 'purple' ? '#a855f7' :
+                        themeColor === 'orange' ? '#f97316' :
+                        themeColor === 'pink' ? '#ec4899' :
+                        '#06b6d4'
+                    }}
+                  />
+                </div>
+              )}
+
               {/* Fluid Fill */}
               <div 
                 className={`absolute bottom-0 left-0 right-0 transition-all duration-1000 ease-in-out ${activePlayerIndex === playerIndex ? 'bg-green-500/60' : 'bg-red-500/60'}`}
@@ -744,16 +766,24 @@ const Game: React.FC = () => {
                     </div>
 
                     {/* Special Cards Game Button */}
-                    <button 
-                      onClick={() => {
-                        setIsGameModeModalOpen(true);
-                        setIsLeftMenuOpen(false);
-                      }}
-                      className="w-12 h-12 rounded-full shadow-lg flex items-center justify-center bg-purple-600 hover:bg-purple-500 text-white hover:scale-110 transition-transform border-2 border-purple-400"
-                      title="Special Cards Game"
-                    >
-                      <Sparkles size={20} />
-                    </button>
+                    <div className="relative">
+                      <motion.div
+                        animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.8, 0.5] }}
+                        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                        className="absolute inset-0 bg-purple-500 rounded-full blur-md"
+                      />
+                      <button 
+                        onClick={() => {
+                          if (isPremium) playSound('play');
+                          setIsGameModeModalOpen(true);
+                          setIsLeftMenuOpen(false);
+                        }}
+                        className="relative w-12 h-12 rounded-full shadow-lg flex items-center justify-center bg-purple-600 hover:bg-purple-500 text-white hover:scale-110 transition-transform border-2 border-purple-400 z-10"
+                        title="Special Cards Game"
+                      >
+                        <Gamepad2 size={24} />
+                      </button>
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -825,16 +855,25 @@ const Game: React.FC = () => {
               exit={{ opacity: 0, y: 20 }}
               className="flex flex-col items-end gap-3"
             >
-              <button 
-                onClick={() => {
-                  setShowPremiumModal(true);
-                  setIsMenuOpen(false);
-                }}
-                className={`w-12 h-12 border rounded-full flex items-center justify-center transition-colors shadow-lg ${isPremium ? 'bg-yellow-500 border-yellow-400 text-white hover:bg-yellow-400' : 'bg-[var(--theme-900)] border-[var(--theme-700)] text-theme-300 hover:bg-[var(--theme-800)] hover:text-white'}`}
-                title="Get Premium"
-              >
-                <Star size={20} className={isPremium ? 'fill-current' : ''} />
-              </button>
+              <div className="relative">
+                {!isPremium && (
+                  <motion.div
+                    animate={{ scale: [1, 1.5, 1], opacity: [0.5, 0, 0.5] }}
+                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                    className="absolute inset-0 bg-blue-500 rounded-full blur-md"
+                  />
+                )}
+                <button 
+                  onClick={() => {
+                    setShowPremiumModal(true);
+                    setIsMenuOpen(false);
+                  }}
+                  className={`relative w-12 h-12 border rounded-full flex items-center justify-center transition-colors shadow-lg z-10 ${isPremium ? 'bg-yellow-500 border-yellow-400 text-white hover:bg-yellow-400' : 'bg-blue-600 border-blue-400 text-white hover:bg-blue-500'}`}
+                  title="Get Premium"
+                >
+                  <Star size={20} className={isPremium ? 'fill-current' : ''} />
+                </button>
+              </div>
 
               <button 
                 onClick={() => {
