@@ -837,13 +837,13 @@ const Game: React.FC = () => {
               if (isPvP) {
                 if (window.confirm("Changing the game mode will disconnect you from your current opponent. Do you want to proceed?")) {
                   disconnectPvP();
-                  setGameState(initGame(newMode));
-                  startMatchmaking(newMode);
+                  setGameState(initGame(newMode, gameState.gameMode));
+                  startMatchmaking(newMode, gameState.gameMode);
                 } else {
                   return; // Cancel the toggle
                 }
               } else {
-                setGameState(initGame(newMode));
+                setGameState(initGame(newMode, gameState.gameMode));
               }
               
               setFloatingModeText(newMode ? "Strategic Mode" : "Mandatory Play Mode");
@@ -900,7 +900,7 @@ const Game: React.FC = () => {
                       disconnectPvP();
                     }
                   } else {
-                    startMatchmaking(gameState.isStrategicMode);
+                    startMatchmaking(gameState.isStrategicMode, gameState.gameMode);
                   }
                   setIsMenuOpen(false);
                 }}

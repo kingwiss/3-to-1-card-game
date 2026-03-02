@@ -12,14 +12,18 @@ interface GameContextProps {
   isWaiting: boolean;
   matchmakingStatus: string;
   playerIndex: number;
-  startMatchmaking: (isStrategicMode: boolean) => Promise<void>;
+  startMatchmaking: (isStrategicMode: boolean, gameMode: 'normal' | 'special') => Promise<void>;
   cancelMatchmaking: () => void;
   disconnectPvP: () => void;
 }
 
 export const GameContext = createContext<GameContextProps | undefined>(undefined);
 
-const getLobbyPrefix = (isStrategic: boolean) => isStrategic ? 'neural-game-v1-strat-' : 'neural-game-v1-std-';
+const getLobbyPrefix = (isStrategic: boolean, gameMode: 'normal' | 'special') => {
+  const modePrefix = gameMode === 'special' ? 'special' : 'normal';
+  const stratPrefix = isStrategic ? 'strat' : 'std';
+  return `neural-game-v1-${modePrefix}-${stratPrefix}-`;
+};
 const MAX_LOBBIES = 50;
 
 export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -65,8 +69,8 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [applyStateChange]);
 
-  const startMatchmaking = useCallback(async (isStrategicMode: boolean) => {
-    console.log("Starting matchmaking...");
+  const startMatchmaking = useCallback(async (isStrategicMode: boolean, gameMode: 'normal' | 'special') => {
+    console.log("Starting matchmaking...", { isStrategicMode, gameMode });
     
     setIsPvP(true);
     setIsWaiting(true);
@@ -91,7 +95,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       const tryLobby = async (lobbyIndex: number): Promise<'HOSTING' | 'CONNECTED' | 'NEXT'> => {
         if (isCancelled) return 'NEXT';
-        const lobbyId = `${getLobbyPrefix(isStrategicMode)}${lobbyIndex}`;
+        const lobbyId = `${getLobbyPrefix(isStrategicMode, gameMode)}${lobbyIndex}`;
         setMatchmakingStatus(`Checking Room ${lobbyIndex + 1}...`);
         
         return new Promise<'HOSTING' | 'CONNECTED' | 'NEXT'>((resolve) => {
@@ -118,7 +122,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             setPeer(hostPeer);
             setIsHost(true);
             
-            const initialState = initGame(isStrategicMode);
+            const initialState = initGame(isStrategicMode, gameMode);
             initialState.players[0].name = "Player 1";
             initialState.players[1].name = "Player 2";
             initialState.mode = "multiplayer";
