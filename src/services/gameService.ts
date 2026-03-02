@@ -222,11 +222,7 @@ export const playCard = (gameState: GameState, cardId: string, selectedValue?: n
     // Golden card logic: Can be any number 1-9.
     // "They can add it to their row even if they have not completed the one, two, three cycle."
     // "They can add it to their row whenever they want."
-    // Assuming consecutive duplicate rule still applies to the *value*.
-    
-    if (!player.cleanSlate && player.row.length > 0 && player.row[player.row.length - 1].value === selectedValue) {
-      return gameState;
-    }
+    // Golden Card bypasses the consecutive duplicate rule.
     
     if (player.score + selectedValue > targetNumber) {
       return gameState;
@@ -506,7 +502,10 @@ export const findBestCardToPlay = (player: Player, targetNumber: number): Card |
   const lastCardInRow = row.length > 0 ? row[row.length - 1] : null;
 
   const isValidCard = (c: Card) => {
-    if (c.type === 'golden') return true; // AI can always play golden card
+    if (c.type === 'golden') {
+      // AI can play golden card if at least value 1 fits
+      return score + 1 <= targetNumber;
+    }
     
     if (c.type === 'permanent' && c.permanentValue) {
        if (score + c.permanentValue > targetNumber) return false;
@@ -559,6 +558,31 @@ export const findBestCardToPlay = (player: Player, targetNumber: number): Card |
   if (lowCard) return lowCard;
 
   return null;
+};
+
+export const getBestGoldenCardValue = (player: Player, targetNumber: number): number => {
+  const { unlockedNumbers, score } = player;
+  
+  // 1. Try to complete cycle
+  for (let i = 1; i <= 3; i++) {
+    if (!unlockedNumbers[i as 1 | 2 | 3]) {
+      if (score + i <= targetNumber) return i;
+    }
+  }
+  
+  // 2. If cycle complete, play high card (e.g. 9) if fits
+  if (player.highCardsUnlocked) {
+    for (let i = 9; i >= 4; i--) {
+      if (score + i <= targetNumber) return i;
+    }
+  }
+  
+  // 3. Otherwise play highest possible low card
+  for (let i = 3; i >= 1; i--) {
+    if (score + i <= targetNumber) return i;
+  }
+  
+  return 1; // Fallback
 };
 
 export const startNextRound = (gameState: GameState): GameState => {

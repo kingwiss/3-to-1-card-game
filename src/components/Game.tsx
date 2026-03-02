@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useGame } from '../hooks/useGame';
 import { useAuth } from '../contexts/AuthContext';
-import { drawCard, playCard, initGame, addDrawnCardToHand, addDrawnCardToTarget, startNextRound, endTurn, findBestCardToPlay } from '../services/gameService';
+import { drawCard, playCard, initGame, addDrawnCardToHand, addDrawnCardToTarget, startNextRound, endTurn, findBestCardToPlay, getBestGoldenCardValue } from '../services/gameService';
 import { auth } from '../services/firebase';
 import Card from './Card';
 import Profile from './Profile';
@@ -157,7 +157,17 @@ const Game: React.FC = () => {
           const bestCard = findBestCardToPlay(aiPlayer, targetNumber);
           if (bestCard) {
             playSound('play');
-            setGameState(prevState => playCard(prevState, bestCard.id));
+            let selectedValue: number | undefined;
+            if (bestCard.type === 'golden') {
+              selectedValue = getBestGoldenCardValue(aiPlayer, targetNumber);
+            }
+            setGameState(prevState => {
+              const newState = playCard(prevState, bestCard.id, selectedValue);
+              if (newState === prevState) {
+                return endTurn(prevState);
+              }
+              return newState;
+            });
           } else {
             setGameState(prevState => endTurn(prevState));
           }
@@ -216,10 +226,20 @@ const Game: React.FC = () => {
         
         if (bestCard) {
            playSound('play');
+           let selectedValue: number | undefined;
+           if (bestCard.type === 'golden') {
+             selectedValue = getBestGoldenCardValue(currentPlayer, targetNumber);
+           }
            if (isPvP) {
-             sendAction({ type: 'playCard', cardId: bestCard.id });
+             sendAction({ type: 'playCard', cardId: bestCard.id, selectedValue });
            } else {
-             setGameState(prevState => playCard(prevState, bestCard.id));
+             setGameState(prevState => {
+               const newState = playCard(prevState, bestCard.id, selectedValue);
+               if (newState === prevState) {
+                 return endTurn(prevState);
+               }
+               return newState;
+             });
            }
         } else {
            if (isPvP) {
@@ -539,10 +559,13 @@ const Game: React.FC = () => {
               {player.hand.map((card) => {
                 const isMyTurnToPlay = activePlayerIndex === playerIndex && hasDrawnCardThisTurn && !drawnCard;
                 const isCardPlayable = 
-                  isMyTurnToPlay &&
-                  player.score + card.value <= targetNumber &&
-                  !(player.row.length > 0 && player.row[player.row.length - 1].value === card.value) &&
-                  !(card.value > 3 && !player.highCardsUnlocked);
+                  isMyTurnToPlay && (
+                    card.type === 'golden' || (
+                      player.score + card.value <= targetNumber &&
+                      !(player.row.length > 0 && player.row[player.row.length - 1].value === card.value) &&
+                      !(card.value > 3 && !player.highCardsUnlocked)
+                    )
+                  );
 
                 return (
                   <div 
