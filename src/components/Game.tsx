@@ -76,6 +76,15 @@ const Game: React.FC = () => {
   const [selectedGoldenCardId, setSelectedGoldenCardId] = useState<string | null>(null);
   const [goldenCardValue, setGoldenCardValue] = useState(5);
   const [onlineUsers, setOnlineUsers] = useState<number>(0);
+  const [hasRecordedGame, setHasRecordedGame] = useState(false);
+  const { updateProfile } = useAuth();
+
+  // Reset hasRecordedGame when a new game starts
+  useEffect(() => {
+    if (gameState.status === 'playing' && gameState.round === 1) {
+      setHasRecordedGame(false);
+    }
+  }, [gameState.status, gameState.round]);
 
   useEffect(() => {
     // Connect to the socket server
@@ -273,8 +282,20 @@ const Game: React.FC = () => {
       } else {
         playSound('lose');
       }
+
+      if (userProfile && !hasRecordedGame) {
+        const isWin = player.persistentScore > opponent.persistentScore;
+        const isLoss = player.persistentScore < opponent.persistentScore;
+        
+        updateProfile({
+          gamesPlayed: (userProfile.gamesPlayed || 0) + 1,
+          wins: (userProfile.wins || 0) + (isWin ? 1 : 0),
+          losses: (userProfile.losses || 0) + (isLoss ? 1 : 0)
+        });
+        setHasRecordedGame(true);
+      }
     }
-  }, [status, winnerId, player.id, player.persistentScore, opponent.persistentScore]);
+  }, [status, winnerId, player.id, player.persistentScore, opponent.persistentScore, userProfile, hasRecordedGame, updateProfile]);
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
