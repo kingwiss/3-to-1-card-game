@@ -3,11 +3,31 @@ import cors from 'cors';
 import Stripe from 'stripe';
 import dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
+import { Server as SocketIOServer } from 'socket.io';
+import http from 'http';
 
 dotenv.config();
 
 const app = express();
 const PORT = 3000;
+const server = http.createServer(app);
+const io = new SocketIOServer(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
+});
+
+// Track online users
+io.on('connection', (socket) => {
+  // Broadcast the updated count to all clients
+  io.emit('onlineUsers', io.engine.clientsCount);
+
+  socket.on('disconnect', () => {
+    // Broadcast the updated count to all clients
+    io.emit('onlineUsers', io.engine.clientsCount);
+  });
+});
 
 // Initialize Stripe with the secret key
 let stripeClient: Stripe | null = null;
@@ -164,7 +184,7 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  server.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
 }

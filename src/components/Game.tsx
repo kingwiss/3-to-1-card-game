@@ -10,6 +10,7 @@ import PremiumModal from './PremiumModal';
 import { motion, AnimatePresence } from 'framer-motion';
 import { playSound } from '../utils/sound';
 import { ChevronUp, ChevronDown, Users, User, BookOpen, Star, Palette, X, Sparkles, LogIn, LogOut, Gamepad2 } from 'lucide-react';
+import { io } from 'socket.io-client';
 
 const ColorButton = ({ color, index, angle, themeColor, setThemeColor, isPremium }: any) => {
   const radius = 90;
@@ -66,6 +67,7 @@ const Game: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [floatingModeText, setFloatingModeText] = useState<string | null>(null);
   const [isPremium, setIsPremium] = useState(true);
+  // Theme color is local state and not synced with opponent
   const [themeColor, setThemeColor] = useState('slate');
   const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
   const [isLeftMenuOpen, setIsLeftMenuOpen] = useState(false);
@@ -73,6 +75,20 @@ const Game: React.FC = () => {
   const [isGoldenCardModalOpen, setIsGoldenCardModalOpen] = useState(false);
   const [selectedGoldenCardId, setSelectedGoldenCardId] = useState<string | null>(null);
   const [goldenCardValue, setGoldenCardValue] = useState(5);
+  const [onlineUsers, setOnlineUsers] = useState<number>(0);
+
+  useEffect(() => {
+    // Connect to the socket server
+    const socket = io();
+    
+    socket.on('onlineUsers', (count: number) => {
+      setOnlineUsers(count);
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, []);
 
   useEffect(() => {
     if (!isLeftMenuOpen) {
@@ -315,6 +331,12 @@ const Game: React.FC = () => {
 
   return (
     <div className="w-full max-w-md mx-auto h-[100dvh] flex flex-col items-center justify-between text-white p-1 font-sans relative overflow-hidden">
+      {/* Online Users (Top Left) */}
+      <div className="absolute top-4 left-4 text-xs text-white/50 z-40 flex items-center gap-1.5 font-medium tracking-wide">
+        <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+        {onlineUsers} online
+      </div>
+
       {/* Auth Buttons (Top Right) */}
       {user ? (
         <div className="absolute top-4 right-4 z-40 flex flex-col items-end">
@@ -948,7 +970,29 @@ const Game: React.FC = () => {
                     The Goal & Turns
                   </h3>
                   <p>Reach the exact target number shown in the center bubble.</p>
-                  <p className="mt-2">On your turn, you must draw a card. Then you can play up to 2 cards (or 0-2 in Strategic Mode).</p>
+                  <p className="mt-2">On your turn, you must draw a card. Then you can play up to 2 cards.</p>
+                </section>
+
+                <section>
+                  <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-xs text-white">i</div>
+                    Game Modes
+                  </h3>
+                  <div className="space-y-4">
+                    <div className="bg-theme-800/50 p-3 rounded-lg border border-theme-700">
+                      <h4 className="font-bold text-theme-200 mb-1">Mandatory Mode (Standard)</h4>
+                      <p className="text-xs text-theme-300">
+                        You <strong>MUST</strong> play at least one card if you have a valid move available. You cannot skip your turn if you are able to play. You can play up to 2 cards maximum.
+                      </p>
+                    </div>
+                    
+                    <div className="bg-theme-800/50 p-3 rounded-lg border border-theme-700">
+                      <h4 className="font-bold text-theme-200 mb-1">Strategic Mode</h4>
+                      <p className="text-xs text-theme-300">
+                        Playing cards is <strong>optional</strong>. You can choose to play 0, 1, or 2 cards on your turn. You can end your turn without playing any cards to save them for later, even if you have valid moves.
+                      </p>
+                    </div>
+                  </div>
                 </section>
 
                 <section>
