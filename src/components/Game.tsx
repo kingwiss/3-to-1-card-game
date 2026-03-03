@@ -255,8 +255,10 @@ const Game: React.FC = () => {
   useEffect(() => {
     if (!hasDrawnCardThisTurn) {
       setIsHandExpanded(false);
+    } else if (activePlayerIndex === playerIndex) {
+      setIsHandExpanded(true);
     }
-  }, [hasDrawnCardThisTurn]);
+  }, [hasDrawnCardThisTurn, activePlayerIndex, playerIndex]);
 
   useEffect(() => {
     if (status === 'roundOver') {
