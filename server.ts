@@ -20,12 +20,26 @@ const io = new SocketIOServer(server, {
 
 // Track online users
 io.on('connection', (socket) => {
+  console.log('Client connected:', socket.id);
+  
+  const updateOnlineUsers = () => {
+    const count = io.sockets.sockets.size;
+    io.emit('onlineUsers', count);
+  };
+
   // Broadcast the updated count to all clients
-  io.emit('onlineUsers', io.engine.clientsCount);
+  updateOnlineUsers();
+
+  socket.on('requestOnlineUsers', () => {
+    socket.emit('onlineUsers', io.sockets.sockets.size);
+  });
 
   socket.on('disconnect', () => {
-    // Broadcast the updated count to all clients
-    io.emit('onlineUsers', io.engine.clientsCount);
+    console.log('Client disconnected:', socket.id);
+    // Broadcast the updated count to all clients after a short delay to ensure removal
+    setTimeout(() => {
+      updateOnlineUsers();
+    }, 100);
   });
 });
 

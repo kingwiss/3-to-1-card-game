@@ -90,7 +90,17 @@ const Game: React.FC = () => {
     // Connect to the socket server
     const socket = io();
     
+    socket.on('connect', () => {
+      console.log('Connected to socket server');
+      socket.emit('requestOnlineUsers');
+    });
+
+    socket.on('connect_error', (err) => {
+      console.error('Socket connection error:', err);
+    });
+
     socket.on('onlineUsers', (count: number) => {
+      console.log('Online users count updated:', count);
       setOnlineUsers(count);
     });
 
@@ -356,8 +366,8 @@ const Game: React.FC = () => {
     <div className="w-full max-w-md mx-auto h-[100dvh] flex flex-col items-center justify-between text-white p-1 font-sans relative overflow-hidden">
       {/* Online Users (Top Left) */}
       <div className="absolute top-4 left-4 text-xs text-white/50 z-40 flex items-center gap-1.5 font-medium tracking-wide">
-        <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-        {onlineUsers} online
+        <div className={`w-1.5 h-1.5 rounded-full ${onlineUsers > 0 ? 'bg-green-500 animate-pulse' : 'bg-yellow-500'}`} />
+        {Math.max(1, onlineUsers)} online
       </div>
 
       {/* Auth Buttons (Top Right) */}
