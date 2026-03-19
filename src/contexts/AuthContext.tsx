@@ -127,18 +127,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           }
 
-          // Reset special games count if a week has passed
-          const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
-          const now = Date.now();
-          if (!currentProfile.specialGameResetDate || now - currentProfile.specialGameResetDate >= ONE_WEEK_MS) {
-            currentProfile.specialGamesPlayedThisWeek = 0;
-            currentProfile.specialGameResetDate = now;
-            setDoc(docRef, { 
-              specialGamesPlayedThisWeek: 0, 
-              specialGameResetDate: now 
-            }, { merge: true }).catch(console.error);
-          }
-
           // Check subscription status from backend with timeout
           try {
             const controller = new AbortController();

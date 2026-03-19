@@ -76,7 +76,7 @@ const Game: React.FC = () => {
   const [isGameModeModalOpen, setIsGameModeModalOpen] = useState(false);
   const [isGoldenCardModalOpen, setIsGoldenCardModalOpen] = useState(false);
   const [selectedGoldenCardId, setSelectedGoldenCardId] = useState<string | null>(null);
-  const [goldenCardValue, setGoldenCardValue] = useState(5);
+  const [goldenCardValue, setGoldenCardValue] = useState<number | null>(null);
   const [onlineUsers, setOnlineUsers] = useState<number>(0);
   const [hasRecordedGame, setHasRecordedGame] = useState(false);
   const [showSpecialGameModal, setShowSpecialGameModal] = useState(false);
@@ -204,6 +204,7 @@ const Game: React.FC = () => {
   const onCardClick = (cardId: string, card: any) => {
     if (card.type === 'golden') {
        setSelectedGoldenCardId(cardId);
+       setGoldenCardValue(null);
        setIsGoldenCardModalOpen(true);
     } else {
        handlePlayCard(cardId);
@@ -1391,6 +1392,15 @@ const Game: React.FC = () => {
               exit={{ scale: 0.9 }}
               className="border-2 border-yellow-500 rounded-xl p-6 max-w-lg w-full shadow-2xl bg-[var(--theme-900)] overflow-y-auto max-h-[90vh] relative"
             >
+              <button 
+                onClick={() => {
+                  setIsGoldenCardModalOpen(false);
+                  setSelectedGoldenCardId(null);
+                }}
+                className="absolute top-4 right-4 text-yellow-500 hover:text-white bg-black/20 hover:bg-black/40 rounded-full p-2 transition-colors z-20"
+              >
+                <X size={20} />
+              </button>
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-yellow-300 via-yellow-500 to-yellow-300 animate-pulse"></div>
               
               <h2 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-yellow-600 mb-2 text-center drop-shadow-sm">Golden Card</h2>
@@ -1398,7 +1408,9 @@ const Game: React.FC = () => {
               
               <div className="relative h-40 flex items-center justify-center mb-8 perspective-1000">
                 {/* Selection Highlight */}
-                <div className="absolute w-20 h-28 border-4 border-yellow-400 rounded-lg z-10 shadow-[0_0_20px_rgba(250,204,21,0.6)] pointer-events-none"></div>
+                {goldenCardValue !== null && (
+                  <div className="absolute w-20 h-28 border-4 border-yellow-400 rounded-lg z-10 shadow-[0_0_20px_rgba(250,204,21,0.6)] pointer-events-none"></div>
+                )}
                 
                 <div className="flex items-center gap-4 overflow-x-auto px-32 py-4 no-scrollbar snap-x snap-mandatory w-full" 
                      style={{ scrollBehavior: 'smooth' }}
@@ -1435,17 +1447,18 @@ const Game: React.FC = () => {
                   Cancel
                 </button>
                 <button 
+                  disabled={goldenCardValue === null}
                   onClick={() => {
-                    if (selectedGoldenCardId) {
+                    if (selectedGoldenCardId && goldenCardValue !== null) {
                       handlePlayCard(selectedGoldenCardId, goldenCardValue);
                       setIsGoldenCardModalOpen(false);
                       setSelectedGoldenCardId(null);
                       playSound('play');
                     }
                   }}
-                  className="flex-1 py-3 bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-400 hover:to-yellow-500 text-white font-bold rounded-lg shadow-lg transform hover:scale-105 transition-all"
+                  className={`flex-1 py-3 font-bold rounded-lg shadow-lg transform transition-all ${goldenCardValue === null ? 'bg-gray-600 text-gray-400 cursor-not-allowed' : 'bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-400 hover:to-yellow-500 text-white hover:scale-105'}`}
                 >
-                  Select {goldenCardValue}
+                  {goldenCardValue === null ? 'Select a Number' : `Play ${goldenCardValue}`}
                 </button>
               </div>
             </motion.div>
