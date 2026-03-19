@@ -11,6 +11,28 @@
 }
 
 :root {
+  --theme-300: #94a3b8;
+  --theme-400: #64748b;
+  --theme-500: #475569;
+  --theme-600: #334155;
+  --theme-700: #1e293b;
+  --theme-800: #0f172a;
+  --theme-900: #020617;
+  --theme-bg-gradient: linear-gradient(-45deg, #0f172a, #1e293b, #334155, #475569, #0f172a);
+}
+
+.theme-teal-gray {
+  --theme-300: #ccfbf1;
+  --theme-400: #99f6e4;
+  --theme-500: #5eead4;
+  --theme-600: #2dd4bf;
+  --theme-700: #14b8a6;
+  --theme-800: #0d9488;
+  --theme-900: #0f766e;
+  --theme-bg-gradient: linear-gradient(-45deg, #0f766e, #14b8a6, #1e3a8a, #2dd4bf, #1e40af, #0f766e);
+}
+
+.theme-slate {
   --theme-300: #cbd5e1;
   --theme-400: #94a3b8;
   --theme-500: #64748b;
@@ -98,8 +120,15 @@
   --theme-bg-gradient: linear-gradient(-45deg, #164e63, #06b6d4, #0891b2, #22d3ee, #164e63);
 }
 
+@keyframes gradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
 body {
   background: var(--theme-bg-gradient);
   background-size: 400% 400%;
+  animation: gradient 15s ease infinite;
   transition: background 0.5s ease;
 }

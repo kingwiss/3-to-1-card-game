@@ -14,9 +14,11 @@ const Card: React.FC<CardProps> = ({ card, onClick, isPlayable = false, isHidden
   const playableClasses = isPlayable ? 'cursor-pointer hover:scale-105' : 'cursor-default';
   const disabledClasses = isDisabled ? 'opacity-50 grayscale' : '';
   
-  let bgClass = isHidden ? 'border-2 border-[var(--theme-600)]' : 'border-2 border-[var(--theme-700)]';
-  let bgStyle = isHidden ? 'var(--theme-800)' : 'var(--theme-900)';
-  let content = <span className="absolute top-0.5 left-1.5 text-base md:text-lg font-bold">{card.value}</span>;
+  const tealToBlueGradient = 'linear-gradient(135deg, #14b8a6 0%, #0f766e 40%, #1e3a8a 100%)';
+  
+  let bgClass = 'border-2 border-[var(--theme-700)]';
+  let bgStyle = tealToBlueGradient;
+  let content = <span className="absolute top-0.5 left-1.5 text-base md:text-lg font-bold text-white">{card.value}</span>;
 
   if (!isHidden) {
     if (card.type === 'golden') {
@@ -41,9 +43,9 @@ const Card: React.FC<CardProps> = ({ card, onClick, isPlayable = false, isHidden
       );
     } else if (card.type === 'sequence') {
       bgClass = 'border-2 border-blue-400';
-      bgStyle = 'var(--theme-900)';
+      bgStyle = tealToBlueGradient;
       content = (
-        <div className="flex flex-col items-center justify-center w-full h-full leading-tight">
+        <div className="flex flex-col items-center justify-center w-full h-full leading-tight text-white">
           {card.sequence?.map((val, idx) => (
             <span key={idx} className="text-xs md:text-sm font-bold">{val}</span>
           ))}

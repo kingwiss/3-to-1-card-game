@@ -43,6 +43,7 @@ const ColorButton = ({ color, index, angle, themeColor, setThemeColor, isPremium
             color === 'purple' ? '#a855f7' :
             color === 'orange' ? '#f97316' :
             color === 'pink' ? '#ec4899' :
+            color === 'teal-gray' ? '#0f766e' :
             '#06b6d4'
         }}
       >
@@ -67,9 +68,9 @@ const Game: React.FC = () => {
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [floatingModeText, setFloatingModeText] = useState<string | null>(null);
-  const [isPremium, setIsPremium] = useState(true);
+  const [isPremium, setIsPremium] = useState(userProfile?.isPremium || false);
   // Theme color is local state and not synced with opponent
-  const [themeColor, setThemeColor] = useState('slate');
+  const [themeColor, setThemeColor] = useState(userProfile?.isPremium ? 'cyan' : 'teal-gray');
   const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
   const [isLeftMenuOpen, setIsLeftMenuOpen] = useState(false);
   const [isGameModeModalOpen, setIsGameModeModalOpen] = useState(false);
@@ -162,7 +163,12 @@ const Game: React.FC = () => {
     }
     // Also sync premium status if needed for UI logic
     if (userProfile?.isPremium !== isPremium) {
-      setIsPremium(userProfile?.isPremium || false);
+      const newPremium = userProfile?.isPremium || false;
+      setIsPremium(newPremium);
+      // Update theme if it was the default
+      if (themeColor === 'slate' || themeColor === 'teal-gray' || themeColor === 'cyan') {
+        setThemeColor(newPremium ? 'cyan' : 'teal-gray');
+      }
     }
   }, [userProfile, playerIndex, gameState.players, isPremium, setGameState, isPvP, sendAction]);
 
@@ -637,7 +643,7 @@ const Game: React.FC = () => {
             return (
               <div 
                 key={num}
-                className={`relative w-10 h-10 rounded-full flex items-center justify-center text-xl font-bold transition-all duration-75 ${isUnlocked ? 'bg-theme-500 text-white shadow-[0_0_25px_var(--theme-500),0_0_10px_rgba(255,255,255,0.8),4px_4px_0px_rgba(0,0,0,0.4)] scale-110 border-2 border-white' : 'bg-theme-800/60 text-theme-300 shadow-[4px_4px_0px_rgba(0,0,0,0.4)] border-2 border-transparent'}`}
+                className={`relative w-10 h-10 rounded-full flex items-center justify-center text-xl font-bold transition-all duration-75 ${isUnlocked ? 'bg-theme-500 text-white shadow-[0_0_25px_var(--theme-500),0_0_10px_rgba(255,255,255,0.8),4px_4px_0px_rgba(0,0,0,0.4)] scale-110 border-2 border-white' : 'bg-white/10 text-white shadow-[4px_4px_0px_rgba(0,0,0,0.2)] border-2 border-white/10 backdrop-blur-sm'}`}
               >
                 {/* Radiating animation when unlocked */}
                 {isUnlocked && (
@@ -823,7 +829,7 @@ const Game: React.FC = () => {
                           <motion.div 
                             className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-0 h-0 z-40"
                           >
-                            {['slate', 'blue', 'red', 'emerald', 'purple', 'orange', 'pink', 'cyan'].map((color, index) => {
+                            {['teal-gray', 'blue', 'red', 'emerald', 'purple', 'orange', 'pink', 'cyan'].map((color, index) => {
                               const totalColors = 8;
                               // Static arc from -110 to 20 degrees (130 degree span)
                               // This ensures all items are visible and clickable
@@ -891,14 +897,16 @@ const Game: React.FC = () => {
             <motion.div
               animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.8, 0.5] }}
               transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-              className="absolute inset-0 bg-gradient-to-br from-amber-400 to-purple-600 rounded-full blur-md"
+              className="absolute inset-0 rounded-full blur-md"
+              style={{ background: 'linear-gradient(135deg, #a855f7, #1e3a8a)' }}
             />
             <button 
               onClick={() => {
                 playSound('play');
                 setShowSpecialGameModal(true);
               }}
-              className="relative w-14 h-14 rounded-full shadow-xl flex items-center justify-center bg-gradient-to-br from-amber-500 to-purple-600 hover:from-amber-400 hover:to-purple-500 text-white hover:scale-110 transition-transform border-2 border-amber-300 z-10"
+              className="relative w-14 h-14 rounded-full shadow-xl flex items-center justify-center text-white hover:scale-110 transition-transform border-2 border-purple-300/50 z-10"
+              style={{ background: 'linear-gradient(135deg, #c084fc, #1e3a8a)' }}
               title="Special Cards Game"
             >
               <Gamepad2 size={28} />
@@ -973,10 +981,11 @@ const Game: React.FC = () => {
                     setShowPremiumModal(true);
                     setIsMenuOpen(false);
                   }}
-                  className={`relative w-12 h-12 border rounded-full flex items-center justify-center transition-colors shadow-lg z-10 ${isPremium ? 'bg-yellow-500 border-yellow-400 text-white hover:bg-yellow-400' : 'bg-slate-800 border-yellow-500/50 text-yellow-500 hover:bg-slate-700'}`}
+                  className={`relative w-12 h-12 border-2 rounded-full flex items-center justify-center transition-all shadow-lg z-10 hover:scale-110 ${isPremium ? 'border-yellow-300' : 'border-yellow-500/50'}`}
+                  style={{ background: 'linear-gradient(135deg, #facc15 0%, #eab308 50%, #14b8a6 85%, #4c1d95 100%)' }}
                   title="Get Premium"
                 >
-                  <Star size={20} className="fill-current text-yellow-500" />
+                  <Star size={20} className="fill-current text-white drop-shadow-sm" />
                 </button>
               </div>
 
@@ -985,8 +994,8 @@ const Game: React.FC = () => {
                   setShowGuide(true);
                   setIsMenuOpen(false);
                 }}
-                className="w-12 h-12 border rounded-full flex items-center justify-center text-theme-300 hover:text-white transition-colors shadow-lg"
-                style={{ backgroundColor: 'var(--theme-900)', borderColor: 'var(--theme-700)' }}
+                className="w-12 h-12 border border-theme-700 rounded-full flex items-center justify-center text-white hover:scale-110 transition-all shadow-lg"
+                style={{ background: 'linear-gradient(135deg, #14b8a6 0%, #0f766e 40%, #1e3a8a 100%)' }}
                 title="How to Play"
               >
                 <BookOpen size={20} />
@@ -1003,7 +1012,8 @@ const Game: React.FC = () => {
                   }
                   setIsMenuOpen(false);
                 }}
-                className={`w-12 h-12 border rounded-full flex items-center justify-center transition-colors shadow-lg ${isPvP ? 'bg-theme-600 border-theme-500 text-white hover:bg-theme-500' : 'bg-[var(--theme-900)] border-[var(--theme-700)] text-theme-300 hover:bg-[var(--theme-800)] hover:text-white'}`}
+                className="w-12 h-12 border border-theme-700 rounded-full flex items-center justify-center text-white hover:scale-110 transition-all shadow-lg"
+                style={{ background: 'linear-gradient(135deg, #14b8a6 0%, #0f766e 40%, #1e3a8a 100%)' }}
                 title={isPvP ? 'Disconnect' : 'Play vs Real User'}
               >
                 {isPvP ? <Users size={20} /> : <User size={20} />}
@@ -1014,11 +1024,11 @@ const Game: React.FC = () => {
 
         <button
           onClick={() => setIsMenuOpen(!isMenuOpen)}
-          className="w-14 h-14 border-2 border-yellow-500 rounded-full flex items-center justify-center text-white hover:bg-theme-600 transition-colors shadow-xl"
-          style={{ backgroundColor: 'var(--theme-800)' }}
+          className="w-14 h-14 border-2 border-yellow-300 rounded-full flex items-center justify-center text-white hover:scale-105 transition-all shadow-xl"
+          style={{ background: 'linear-gradient(135deg, #facc15 0%, #eab308 50%, #14b8a6 85%, #4c1d95 100%)' }}
         >
           <motion.div animate={{ rotate: isMenuOpen ? 180 : 0 }}>
-            <Star size={24} className="text-yellow-400 fill-current" />
+            <Star size={24} className="text-white fill-current drop-shadow-md" />
           </motion.div>
         </button>
       </div>
