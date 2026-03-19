@@ -7,6 +7,7 @@ import Card from './Card';
 import Profile from './Profile';
 import Login from './Login';
 import PremiumModal from './PremiumModal';
+import SpecialGameModal from './SpecialGameModal';
 import { motion, AnimatePresence } from 'framer-motion';
 import { playSound } from '../utils/sound';
 import { ChevronUp, ChevronDown, Users, User, BookOpen, Star, Palette, X, Sparkles, LogIn, LogOut, Gamepad2 } from 'lucide-react';
@@ -77,7 +78,35 @@ const Game: React.FC = () => {
   const [goldenCardValue, setGoldenCardValue] = useState(5);
   const [onlineUsers, setOnlineUsers] = useState<number>(0);
   const [hasRecordedGame, setHasRecordedGame] = useState(false);
+  const [showSpecialGameModal, setShowSpecialGameModal] = useState(false);
+  const [localSpecialGamesPlayed, setLocalSpecialGamesPlayed] = useState(0);
   const { updateProfile } = useAuth();
+
+  // Handle local tracking for unauthenticated users
+  useEffect(() => {
+    if (!userProfile) {
+      const storedData = localStorage.getItem('specialGamesTracking');
+      const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+      
+      if (storedData) {
+        try {
+          const { played, resetDate } = JSON.parse(storedData);
+          if (Date.now() - resetDate >= ONE_WEEK_MS) {
+            localStorage.setItem('specialGamesTracking', JSON.stringify({ played: 0, resetDate: Date.now() }));
+            setLocalSpecialGamesPlayed(0);
+          } else {
+            setLocalSpecialGamesPlayed(played);
+          }
+        } catch (e) {
+          localStorage.setItem('specialGamesTracking', JSON.stringify({ played: 0, resetDate: Date.now() }));
+          setLocalSpecialGamesPlayed(0);
+        }
+      } else {
+        localStorage.setItem('specialGamesTracking', JSON.stringify({ played: 0, resetDate: Date.now() }));
+        setLocalSpecialGamesPlayed(0);
+      }
+    }
+  }, [userProfile]);
 
   // Reset hasRecordedGame when a new game starts
   useEffect(() => {
@@ -608,20 +637,20 @@ const Game: React.FC = () => {
             return (
               <div 
                 key={num}
-                className={`relative w-10 h-10 rounded-full flex items-center justify-center text-xl font-bold transition-all duration-500 ${isUnlocked ? 'bg-theme-500/40 text-white shadow-[0_0_15px_rgba(var(--color-theme-500),0.6),4px_4px_0px_rgba(0,0,0,0.4)]' : 'bg-theme-700/40 text-white shadow-[4px_4px_0px_rgba(0,0,0,0.4)]'}`}
+                className={`relative w-10 h-10 rounded-full flex items-center justify-center text-xl font-bold transition-all duration-75 ${isUnlocked ? 'bg-theme-500 text-white shadow-[0_0_25px_var(--theme-500),0_0_10px_rgba(255,255,255,0.8),4px_4px_0px_rgba(0,0,0,0.4)] scale-110 border-2 border-white' : 'bg-theme-800/60 text-theme-300 shadow-[4px_4px_0px_rgba(0,0,0,0.4)] border-2 border-transparent'}`}
               >
                 {/* Radiating animation when unlocked */}
                 {isUnlocked && (
-                  <div className="absolute inset-0 rounded-full animate-ping bg-theme-400/40 z-0" style={{ animationDuration: '2s' }}></div>
+                  <div className="absolute inset-0 rounded-full animate-ping bg-theme-400/80 z-0" style={{ animationDuration: '1s' }}></div>
                 )}
                 
                 {/* Bubble Highlights */}
                 <div className="absolute inset-0 rounded-full overflow-hidden z-0">
-                  <div className="absolute top-1.5 left-2 w-3 h-1.5 bg-white/40 rounded-full transform -rotate-45 blur-[0.5px]"></div>
-                  <div className="absolute bottom-1.5 right-2 w-2 h-1 bg-white/20 rounded-full transform -rotate-45 blur-[1px]"></div>
+                  <div className="absolute top-1.5 left-2 w-3 h-1.5 bg-white/60 rounded-full transform -rotate-45 blur-[0.5px]"></div>
+                  <div className="absolute bottom-1.5 right-2 w-2 h-1 bg-white/30 rounded-full transform -rotate-45 blur-[1px]"></div>
                 </div>
                 
-                <span className="relative z-10">{num}</span>
+                <span className="relative z-10 drop-shadow-md">{num}</span>
               </div>
             );
           })}
@@ -856,6 +885,27 @@ const Game: React.FC = () => {
           )}
         </AnimatePresence>
 
+        {/* Free User Special Game Button */}
+        {!isPremium && (
+          <div className="relative">
+            <motion.div
+              animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.8, 0.5] }}
+              transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+              className="absolute inset-0 bg-gradient-to-br from-amber-400 to-purple-600 rounded-full blur-md"
+            />
+            <button 
+              onClick={() => {
+                playSound('play');
+                setShowSpecialGameModal(true);
+              }}
+              className="relative w-14 h-14 rounded-full shadow-xl flex items-center justify-center bg-gradient-to-br from-amber-500 to-purple-600 hover:from-amber-400 hover:to-purple-500 text-white hover:scale-110 transition-transform border-2 border-amber-300 z-10"
+              title="Special Cards Game"
+            >
+              <Gamepad2 size={28} />
+            </button>
+          </div>
+        )}
+
         {/* Strategic Mode Toggle */}
         <div className="relative">
           <AnimatePresence>
@@ -923,10 +973,10 @@ const Game: React.FC = () => {
                     setShowPremiumModal(true);
                     setIsMenuOpen(false);
                   }}
-                  className={`relative w-12 h-12 border rounded-full flex items-center justify-center transition-colors shadow-lg z-10 ${isPremium ? 'bg-yellow-500 border-yellow-400 text-white hover:bg-yellow-400' : 'bg-blue-600 border-blue-400 text-white hover:bg-blue-500'}`}
+                  className={`relative w-12 h-12 border rounded-full flex items-center justify-center transition-colors shadow-lg z-10 ${isPremium ? 'bg-yellow-500 border-yellow-400 text-white hover:bg-yellow-400' : 'bg-slate-800 border-yellow-500/50 text-yellow-500 hover:bg-slate-700'}`}
                   title="Get Premium"
                 >
-                  <Star size={20} className={isPremium ? 'fill-current' : ''} />
+                  <Star size={20} className="fill-current text-yellow-500" />
                 </button>
               </div>
 
@@ -964,11 +1014,11 @@ const Game: React.FC = () => {
 
         <button
           onClick={() => setIsMenuOpen(!isMenuOpen)}
-          className="w-14 h-14 border-2 border-theme-500 rounded-full flex items-center justify-center text-white hover:bg-theme-600 transition-colors shadow-xl"
+          className="w-14 h-14 border-2 border-yellow-500 rounded-full flex items-center justify-center text-white hover:bg-theme-600 transition-colors shadow-xl"
           style={{ backgroundColor: 'var(--theme-800)' }}
         >
           <motion.div animate={{ rotate: isMenuOpen ? 180 : 0 }}>
-            <ChevronUp size={24} />
+            <Star size={24} className="text-yellow-400 fill-current" />
           </motion.div>
         </button>
       </div>
@@ -1035,7 +1085,7 @@ const Game: React.FC = () => {
                   </h3>
                   <p>A player must play only <strong>ones, twos, and threes</strong> to their row, and they must add <strong>at least one of each</strong> before they can play a card from 4 to 9.</p>
                   
-                  <div className="p-3 rounded-lg mt-2 border border-[var(--theme-700)]" style={{ backgroundColor: 'rgba(var(--theme-900), 0.5)' }}>
+                  <div className="p-3 rounded-lg mt-2 border border-[var(--theme-700)]" style={{ backgroundColor: 'color-mix(in srgb, var(--theme-900) 50%, transparent)' }}>
                     <p className="text-xs text-theme-400 mb-2">Example of unlocking a high card:</p>
                     <div className="flex gap-2 items-center">
                       <div className="w-8 h-10 border border-[var(--theme-700)] rounded text-white font-bold flex items-center justify-center shadow-sm" style={{ backgroundColor: 'var(--theme-900)' }}>2</div>
@@ -1049,7 +1099,7 @@ const Game: React.FC = () => {
 
                   <p className="mt-3"><strong>No Consecutive Duplicates:</strong> You cannot play the same number twice in a row. You can alternate (e.g., 1-2-1-2).</p>
                   
-                  <div className="p-3 rounded-lg mt-2 border border-[var(--theme-700)]" style={{ backgroundColor: 'rgba(var(--theme-900), 0.5)' }}>
+                  <div className="p-3 rounded-lg mt-2 border border-[var(--theme-700)]" style={{ backgroundColor: 'color-mix(in srgb, var(--theme-900) 50%, transparent)' }}>
                     <div className="flex flex-col gap-4">
                       <div>
                         <p className="text-xs text-red-400 mb-1 font-bold">Invalid (Consecutive Duplicates):</p>
@@ -1192,8 +1242,13 @@ const Game: React.FC = () => {
                   {/* Special Mode */}
                   <div 
                     onClick={() => {
-                      setGameState(initGame(gameState.isStrategicMode, 'special'));
-                      setIsGameModeModalOpen(false);
+                      if (isPremium) {
+                        setGameState(initGame(gameState.isStrategicMode, 'special'));
+                        setIsGameModeModalOpen(false);
+                      } else {
+                        setIsGameModeModalOpen(false);
+                        setShowSpecialGameModal(true);
+                      }
                     }}
                     className={`cursor-pointer group relative overflow-hidden rounded-xl border-2 p-6 transition-all duration-300 hover:scale-[1.02] flex flex-col ${gameMode === 'special' ? 'border-purple-500 bg-purple-900/20 ring-2 ring-purple-500/50' : 'border-[var(--theme-700)] bg-[var(--theme-800)] hover:border-purple-400'}`}
                   >
@@ -1402,6 +1457,45 @@ const Game: React.FC = () => {
       <AnimatePresence>
         {showPremiumModal && <PremiumModal onClose={() => setShowPremiumModal(false)} />}
       </AnimatePresence>
+
+      {/* Special Game Modal */}
+      <SpecialGameModal 
+        isOpen={showSpecialGameModal}
+        onClose={() => setShowSpecialGameModal(false)}
+        onGetPremium={() => {
+          setShowSpecialGameModal(false);
+          setShowPremiumModal(true);
+        }}
+        specialGamesPlayedThisWeek={userProfile ? (userProfile.specialGamesPlayedThisWeek || 0) : localSpecialGamesPlayed}
+        onPlay={() => {
+          const gamesPlayed = userProfile ? (userProfile.specialGamesPlayedThisWeek || 0) : localSpecialGamesPlayed;
+          if (gamesPlayed < 2) {
+            if (userProfile) {
+              updateProfile({ specialGamesPlayedThisWeek: gamesPlayed + 1 });
+            } else {
+              const newPlayed = gamesPlayed + 1;
+              setLocalSpecialGamesPlayed(newPlayed);
+              const storedData = localStorage.getItem('specialGamesTracking');
+              const resetDate = storedData ? JSON.parse(storedData).resetDate : Date.now();
+              localStorage.setItem('specialGamesTracking', JSON.stringify({ played: newPlayed, resetDate }));
+            }
+            setShowSpecialGameModal(false);
+            
+            if (isPvP) {
+              if (window.confirm("Changing the game mode will disconnect you from your current opponent. Do you want to proceed?")) {
+                disconnectPvP();
+                setGameState(initGame(gameState.isStrategicMode, 'special'));
+                setFloatingModeText("Special Cards Mode Enabled");
+                setTimeout(() => setFloatingModeText(null), 2000);
+              }
+            } else {
+              setGameState(initGame(gameState.isStrategicMode, 'special'));
+              setFloatingModeText("Special Cards Mode Enabled");
+              setTimeout(() => setFloatingModeText(null), 2000);
+            }
+          }
+        }}
+      />
     </div>
   );
 };

@@ -25,6 +25,7 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose }) => {
         body: JSON.stringify({
           userId: user.uid,
           email: user.email,
+          returnUrl: window.location.origin,
         }),
       });
 
@@ -102,70 +103,71 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose }) => {
           </div>
 
           {/* Right Side - Comparison */}
-          <div className="w-full md:w-3/5 p-6 md:p-8 bg-slate-900 shrink-0">
+          <div className="w-full md:w-3/5 p-6 md:p-8 bg-slate-900 shrink-0 flex flex-col">
             <h3 className="text-xl md:text-2xl font-bold text-white mb-4 md:mb-6 text-center">Choose Your Plan</h3>
             
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 md:mb-8">
-              {/* Free Plan */}
-              <div className="p-4 rounded-2xl border border-slate-700 bg-slate-800/50 flex flex-col items-center opacity-70 hover:opacity-100 transition-opacity">
-                <span className="text-slate-400 font-bold mb-1 md:mb-2">Free</span>
-                <span className="text-2xl font-bold text-white mb-3 md:mb-4">$0</span>
-                <ul className="space-y-2 md:space-y-3 text-xs md:text-sm text-slate-300 w-full">
-                  <li className="flex items-center gap-2"><Check size={14} className="text-green-500 shrink-0" /> Basic Gameplay</li>
-                  <li className="flex items-center gap-2"><Check size={14} className="text-green-500 shrink-0" /> Standard Deck</li>
-                  <li className="flex items-center gap-2"><X size={14} className="text-slate-500 shrink-0" /> No Special Cards</li>
-                  <li className="flex items-center gap-2"><X size={14} className="text-slate-500 shrink-0" /> Basic Themes Only</li>
-                </ul>
+            {/* Premium Plan */}
+            <div className="p-5 rounded-2xl border-2 border-yellow-500 bg-slate-800 relative flex flex-col items-center shadow-xl mb-6">
+              <div className="absolute -top-3 bg-yellow-500 text-black text-[10px] md:text-xs font-bold px-3 py-1 rounded-full">
+                RECOMMENDED
               </div>
-
-              {/* Premium Plan */}
-              <div className="p-4 rounded-2xl border-2 border-yellow-500 bg-slate-800 relative flex flex-col items-center transform sm:scale-105 shadow-xl mt-4 sm:mt-0">
-                <div className="absolute -top-3 bg-yellow-500 text-black text-[10px] md:text-xs font-bold px-3 py-1 rounded-full">
-                  RECOMMENDED
-                </div>
-                <span className="text-yellow-400 font-bold mb-1 md:mb-2 mt-2 sm:mt-0">Premium</span>
-                <span className="text-2xl md:text-3xl font-bold text-white mb-3 md:mb-4">$4.99<span className="text-xs md:text-sm text-slate-400 font-normal">/mo</span></span>
-                <ul className="space-y-2 md:space-y-3 text-xs md:text-sm text-white w-full">
-                  <li className="flex items-center gap-2"><Check size={14} className="text-yellow-400 shrink-0" /> All Game Modes</li>
-                  <li className="flex items-center gap-2"><Check size={14} className="text-yellow-400 shrink-0" /> Golden Cards</li>
-                  <li className="flex items-center gap-2"><Check size={14} className="text-yellow-400 shrink-0" /> Permanent Cards</li>
-                  <li className="flex items-center gap-2"><Check size={14} className="text-yellow-400 shrink-0" /> All Themes Unlocked</li>
-                </ul>
-              </div>
+              <span className="text-yellow-400 font-bold mb-1 mt-2">Premium</span>
+              <span className="text-3xl font-bold text-white mb-4">$4.99<span className="text-sm text-slate-400 font-normal">/mo</span></span>
+              <ul className="space-y-3 text-sm text-white w-full max-w-xs mx-auto">
+                <li className="flex items-center gap-3"><Check size={16} className="text-yellow-400 shrink-0" /> All Game Modes</li>
+                <li className="flex items-center gap-3"><Check size={16} className="text-yellow-400 shrink-0" /> Golden Cards</li>
+                <li className="flex items-center gap-3"><Check size={16} className="text-yellow-400 shrink-0" /> Permanent Cards</li>
+                <li className="flex items-center gap-3"><Check size={16} className="text-yellow-400 shrink-0" /> All Themes Unlocked</li>
+              </ul>
             </div>
 
-            {userProfile?.isPremium ? (
-              <button
-                onClick={async () => {
-                  try {
-                    const response = await fetch('/api/create-portal-session', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ email: user?.email }),
-                    });
-                    const { url } = await response.json();
-                    if (url) window.location.href = url;
-                  } catch (error) {
-                    console.error('Error opening portal:', error);
-                    alert('Failed to open subscription portal.');
-                  }
-                }}
-                className="w-full py-3 md:py-4 bg-slate-700 hover:bg-slate-600 text-white font-bold text-base md:text-lg rounded-xl shadow-lg transition-all flex items-center justify-center gap-2"
-              >
-                Manage Subscription
-              </button>
-            ) : (
-              <button
-                onClick={handleSubscribe}
-                className="w-full py-3 md:py-4 bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-400 hover:to-yellow-500 text-black font-bold text-base md:text-lg rounded-xl shadow-lg shadow-yellow-500/20 transform hover:scale-[1.02] transition-all flex items-center justify-center gap-2"
-              >
-                <Zap size={20} fill="currentColor" />
-                Upgrade to Premium
-              </button>
-            )}
-            <p className="text-center text-slate-500 text-[10px] md:text-xs mt-3 md:mt-4">
-              Secure payment via Stripe. Cancel anytime.
-            </p>
+            {/* Upgrade Button */}
+            <div className="mb-6">
+              {userProfile?.isPremium ? (
+                <button
+                  onClick={async () => {
+                    try {
+                      const response = await fetch('/api/create-portal-session', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email: user?.email, returnUrl: window.location.origin }),
+                      });
+                      const { url } = await response.json();
+                      if (url) window.location.href = url;
+                    } catch (error) {
+                      console.error('Error opening portal:', error);
+                      alert('Failed to open subscription portal.');
+                    }
+                  }}
+                  className="w-full py-3 md:py-4 bg-slate-700 hover:bg-slate-600 text-white font-bold text-base md:text-lg rounded-xl shadow-lg transition-all flex items-center justify-center gap-2"
+                >
+                  Manage Subscription
+                </button>
+              ) : (
+                <button
+                  onClick={handleSubscribe}
+                  className="w-full py-3 md:py-4 bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-400 hover:to-yellow-500 text-black font-bold text-base md:text-lg rounded-xl shadow-lg shadow-yellow-500/20 transform hover:scale-[1.02] transition-all flex items-center justify-center gap-2"
+                >
+                  <Zap size={20} fill="currentColor" />
+                  Upgrade to Premium
+                </button>
+              )}
+              <p className="text-center text-slate-500 text-[10px] md:text-xs mt-3">
+                Secure payment via Stripe. Cancel anytime.
+              </p>
+            </div>
+
+            {/* Free Plan */}
+            <div className="p-4 rounded-2xl border border-slate-700 bg-slate-800/50 flex flex-col items-center opacity-70 hover:opacity-100 transition-opacity mt-auto">
+              <span className="text-slate-400 font-bold mb-1">Free</span>
+              <span className="text-xl font-bold text-white mb-3">$0</span>
+              <ul className="space-y-2 text-xs text-slate-300 w-full max-w-xs mx-auto">
+                <li className="flex items-center gap-2"><Check size={14} className="text-green-500 shrink-0" /> Basic Gameplay</li>
+                <li className="flex items-center gap-2"><Check size={14} className="text-green-500 shrink-0" /> Standard Deck</li>
+                <li className="flex items-center gap-2"><X size={14} className="text-slate-500 shrink-0" /> No Special Cards</li>
+                <li className="flex items-center gap-2"><X size={14} className="text-slate-500 shrink-0" /> Basic Themes Only</li>
+              </ul>
+            </div>
           </div>
         </div>
       </motion.div>

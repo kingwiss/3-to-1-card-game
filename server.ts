@@ -60,22 +60,42 @@ function getStripe(): Stripe {
 app.use(express.json());
 app.use(cors());
 
+let cachedStripePriceId: string | null = null;
+
 // API Routes
 app.post('/api/create-checkout-session', async (req, res) => {
   try {
     const stripe = getStripe();
-    const { email, userId, priceId } = req.body;
+    const { email, userId, priceId, returnUrl } = req.body;
 
     if (!email || !userId) {
       return res.status(400).json({ error: 'Email and userId are required' });
     }
 
+    const baseUrl = returnUrl || `${req.protocol}://${req.get('host')}`;
+
     // Use the provided price ID or default to the env var
-    const stripePriceId = priceId || process.env.STRIPE_PRICE_ID;
+    let stripePriceId = priceId || process.env.STRIPE_PRICE_ID || cachedStripePriceId;
     
     if (!stripePriceId) {
-      console.error('STRIPE_PRICE_ID is missing');
-      return res.status(500).json({ error: 'STRIPE_PRICE_ID is not configured' });
+      console.log('STRIPE_PRICE_ID is missing, creating a default product and price...');
+      try {
+        const product = await stripe.products.create({
+          name: 'Premium Subscription',
+          description: 'Unlock all game modes, special cards, and themes.',
+        });
+        const price = await stripe.prices.create({
+          product: product.id,
+          unit_amount: 499, // $4.99
+          currency: 'usd',
+          recurring: { interval: 'month' },
+        });
+        stripePriceId = price.id;
+        cachedStripePriceId = price.id;
+      } catch (err: any) {
+        console.error('Failed to create Stripe product/price:', err);
+        return res.status(500).json({ error: 'Failed to configure Stripe pricing automatically. Please set STRIPE_PRICE_ID.' });
+      }
     }
 
     // Look for an existing customer
@@ -103,8 +123,8 @@ app.post('/api/create-checkout-session', async (req, res) => {
         },
       ],
       mode: 'subscription',
-      success_url: `${req.protocol}://${req.get('host')}/?success=true&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${req.protocol}://${req.get('host')}/?canceled=true`,
+      success_url: `${baseUrl}/?success=true&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${baseUrl}/?canceled=true`,
       client_reference_id: userId,
     });
 
@@ -118,11 +138,13 @@ app.post('/api/create-checkout-session', async (req, res) => {
 app.post('/api/create-portal-session', async (req, res) => {
   try {
     const stripe = getStripe();
-    const { email } = req.body;
+    const { email, returnUrl } = req.body;
 
     if (!email) {
       return res.status(400).json({ error: 'Email is required' });
     }
+
+    const baseUrl = returnUrl || `${req.protocol}://${req.get('host')}`;
 
     const customers = await stripe.customers.list({ email: email, limit: 1 });
     
@@ -134,7 +156,7 @@ app.post('/api/create-portal-session', async (req, res) => {
 
     const session = await stripe.billingPortal.sessions.create({
       customer: customerId,
-      return_url: `${req.protocol}://${req.get('host')}/`,
+      return_url: `${baseUrl}/`,
     });
 
     res.json({ url: session.url });

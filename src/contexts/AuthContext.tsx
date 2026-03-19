@@ -11,6 +11,8 @@ interface UserProfile {
   losses: number;
   gamesPlayed: number;
   isPremium: boolean;
+  specialGamesPlayedThisWeek?: number;
+  specialGameResetDate?: number;
 }
 
 interface AuthContextType {
@@ -106,6 +108,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               losses: 0,
               gamesPlayed: 0,
               isPremium: false,
+              specialGamesPlayedThisWeek: 0,
+              specialGameResetDate: Date.now(),
             };
             // Only try to set if we have a valid connection, otherwise just use local state
             try {
@@ -123,6 +127,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           }
 
+          // Reset special games count if a week has passed
+          const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+          const now = Date.now();
+          if (!currentProfile.specialGameResetDate || now - currentProfile.specialGameResetDate >= ONE_WEEK_MS) {
+            currentProfile.specialGamesPlayedThisWeek = 0;
+            currentProfile.specialGameResetDate = now;
+            setDoc(docRef, { 
+              specialGamesPlayedThisWeek: 0, 
+              specialGameResetDate: now 
+            }, { merge: true }).catch(console.error);
+          }
+
           // Check subscription status from backend with timeout
           try {
             const controller = new AbortController();
@@ -133,29 +149,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             });
             clearTimeout(id);
             
+            let isPremium = false;
             if (response.ok) {
-              const { isPremium } = await response.json();
-              
-              // Also check URL parameters for successful checkout
-              const urlParams = new URLSearchParams(window.location.search);
-              const isSuccess = urlParams.get('success') === 'true';
-              
-              const finalPremiumStatus = isPremium || isSuccess;
+              const data = await response.json();
+              isPremium = data.isPremium;
+            }
+            
+            // Also check URL parameters for successful checkout
+            const urlParams = new URLSearchParams(window.location.search);
+            const isSuccess = urlParams.get('success') === 'true';
+            
+            const finalPremiumStatus = isPremium || isSuccess;
 
-              if (currentProfile.isPremium !== finalPremiumStatus) {
-                currentProfile.isPremium = finalPremiumStatus;
-                // Try to update Firestore, but don't block if it fails
-                setDoc(docRef, { isPremium: finalPremiumStatus }, { merge: true }).catch(console.error);
-              }
-              
-              if (isSuccess) {
-                // Clean up URL
-                window.history.replaceState({}, document.title, window.location.pathname);
-                alert('Payment successful! You are now a premium member.');
-              }
+            if (currentProfile.isPremium !== finalPremiumStatus) {
+              currentProfile.isPremium = finalPremiumStatus;
+              // Try to update Firestore, but don't block if it fails
+              setDoc(docRef, { isPremium: finalPremiumStatus }, { merge: true }).catch(console.error);
+            }
+            
+            if (isSuccess) {
+              // Clean up URL
+              window.history.replaceState({}, document.title, window.location.pathname);
+              alert('Payment successful! You are now a premium member.');
             }
           } catch (err) {
             console.error('Failed to verify subscription status:', err);
+            // Fallback to URL check if fetch fails
+            const urlParams = new URLSearchParams(window.location.search);
+            const isSuccess = urlParams.get('success') === 'true';
+            if (isSuccess) {
+              currentProfile.isPremium = true;
+              setDoc(docRef, { isPremium: true }, { merge: true }).catch(console.error);
+              window.history.replaceState({}, document.title, window.location.pathname);
+              alert('Payment successful! You are now a premium member.');
+            }
           }
 
           setUserProfile(currentProfile);
