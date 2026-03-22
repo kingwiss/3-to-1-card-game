@@ -64,6 +64,14 @@ const hasEligibleMoves = (player: Player, targetNumber: number): boolean => {
     // Special card logic for eligibility
     if (card.type === 'golden') return true; // Can always play golden card (assuming player chooses valid number)
     
+    if (card.type === 'gamble' && !card.isGambleRevealed) return true; // Can always choose +/- for gamble card
+    
+    if (card.type === 'gamble' && card.isGambleRevealed && card.gambleChoice === 'positive') {
+       if (player.score + card.value > targetNumber) continue;
+       if (!player.cleanSlate && player.row.length > 0 && player.row[player.row.length - 1].value === card.value) continue;
+       return true;
+    }
+    
     if (card.type === 'permanent' && card.permanentValue) {
        if (player.score + card.permanentValue > targetNumber) continue;
        if (!player.cleanSlate && player.row.length > 0 && player.row[player.row.length - 1].value === card.permanentValue) continue;
@@ -119,10 +127,19 @@ export const reshuffleDeck = (gameState: GameState): GameState => {
 
   let newDeck = shuffleDeck(cardsToReshuffle);
 
-  const finalPlayers = newPlayers.map(p => ({
-    ...p,
-    hand: newDeck.splice(0, INITIAL_HAND_SIZE),
-  }));
+  const finalPlayers = newPlayers.map(p => {
+    let dealt = 0;
+    while (dealt < INITIAL_HAND_SIZE) {
+      const cardIndex = newDeck.findIndex(c => c.type !== 'gamble');
+      if (cardIndex !== -1) {
+        p.hand.push(newDeck.splice(cardIndex, 1)[0]);
+        dealt++;
+      } else {
+        break;
+      }
+    }
+    return p;
+  });
 
   return {
     ...gameState,
@@ -224,18 +241,41 @@ export const addDrawnCardToTarget = (gameState: GameState): GameState => {
 
 export const handleGambleChoice = (gameState: GameState, cardId: string, choice: 'positive' | 'negative'): GameState => {
   const { players, activePlayerIndex, drawnCard } = gameState;
-  if (!drawnCard || drawnCard.id !== cardId || drawnCard.type !== 'gamble' || drawnCard.isGambleRevealed) {
+  const player = players[activePlayerIndex];
+  
+  let cardToProcess: Card | null = null;
+  let isFromHand = false;
+  let cardIndexInHand = -1;
+
+  if (drawnCard && drawnCard.id === cardId && drawnCard.type === 'gamble' && !drawnCard.isGambleRevealed) {
+    cardToProcess = drawnCard;
+  } else {
+    cardIndexInHand = player.hand.findIndex(c => c.id === cardId && c.type === 'gamble' && !c.isGambleRevealed);
+    if (cardIndexInHand !== -1) {
+      cardToProcess = player.hand[cardIndexInHand];
+      isFromHand = true;
+    }
+  }
+
+  if (!cardToProcess) {
     return gameState;
   }
 
-  const player = players[activePlayerIndex];
   let newState = { ...gameState, pendingGambleDecision: false };
   const newPlayers = [...players];
   const newPlayer = { ...player };
 
   // Reveal the card
-  const revealedCard = { ...drawnCard, isGambleRevealed: true, gambleChoice: choice };
-  newState.drawnCard = null; // Clear drawn card as it's processed
+  const revealedCard = { ...cardToProcess, isGambleRevealed: true, gambleChoice: choice };
+  
+  if (!isFromHand) {
+    newState.drawnCard = null; // Clear drawn card as it's processed
+  } else {
+    // Remove from hand if it was there
+    const newHand = [...newPlayer.hand];
+    newHand.splice(cardIndexInHand, 1);
+    newPlayer.hand = newHand;
+  }
 
   if (choice === 'positive') {
     // Goes to hand, revealed as positive
@@ -254,29 +294,11 @@ export const handleGambleChoice = (gameState: GameState, cardId: string, choice:
     
     // Add to row
     const newRow = [...newPlayer.row, revealedCard];
-    const newScore = newPlayer.score; // Negative gamble card does not add to score
+    const newScore = newPlayer.score + revealedCard.value; 
     const newTargetNumber = newState.targetNumber - revealedCard.value;
     
-    let newUnlockedNumbers = { ...newPlayer.unlockedNumbers };
-    let newHighCardsUnlocked = newPlayer.highCardsUnlocked;
-
-    if (revealedCard.value >= 1 && revealedCard.value <= 3) {
-      newUnlockedNumbers[revealedCard.value as 1 | 2 | 3] = true;
-    }
-
-    if (newUnlockedNumbers[1] && newUnlockedNumbers[2] && newUnlockedNumbers[3]) {
-      newHighCardsUnlocked = true;
-    }
-
-    if (revealedCard.value > 3) {
-      newUnlockedNumbers = { 1: false, 2: false, 3: false };
-      newHighCardsUnlocked = false;
-    }
-
     newPlayer.row = newRow;
     newPlayer.score = newScore;
-    newPlayer.unlockedNumbers = newUnlockedNumbers;
-    newPlayer.highCardsUnlocked = newHighCardsUnlocked;
     newPlayer.cleanSlate = false;
     newPlayers[activePlayerIndex] = newPlayer;
     newState.players = newPlayers;
@@ -293,29 +315,41 @@ export const handleGambleChoice = (gameState: GameState, cardId: string, choice:
     }
 
     newState.targetNumber = newTargetNumber;
-    newState.logs = [...newState.logs, `The target number is reduced by ${revealedCard.value} to ${newTargetNumber}! ${newPlayer.name}'s score is now ${newScore}.`];
+    newState.logs = [...newState.logs, `The target number is reduced by ${revealedCard.value} to ${newTargetNumber}! ${newPlayer.name}'s roll is now ${newScore}.`];
 
     // Check win/loss
     if (newTargetNumber < newScore) {
-      newState.logs = [...newState.logs, `${newPlayer.name} busted because the target number (${newTargetNumber}) fell below their score (${newScore})! They lose the round.`];
+      newState.logs = [...newState.logs, `${newPlayer.name} busted because the target number (${newTargetNumber}) fell below their current roll (${newScore})! They lose the round.`];
       newState.status = 'roundOver';
+      
       // Opponent wins
-      const opponentIndex = (activePlayerIndex + 1) % players.length;
-      newState.winnerId = players[opponentIndex].id;
-      players[opponentIndex].persistentScore += 1;
+      const opponentIndex = (activePlayerIndex + 1) % newState.players.length;
+      const winner = { ...newState.players[opponentIndex] };
+      winner.persistentScore += 1;
+      
+      const finalPlayers = [...newState.players];
+      finalPlayers[opponentIndex] = winner;
+      newState.players = finalPlayers;
+      newState.winnerId = winner.id;
       return newState;
     } else if (newScore === newTargetNumber) {
       newState.logs = [...newState.logs, `${newPlayer.name} hit the target number exactly! They win the round.`];
-      newPlayer.persistentScore += 1;
       newState.status = 'roundOver';
       newState.winnerId = newPlayer.id;
+      
+      const winner = { ...newState.players[activePlayerIndex] };
+      winner.persistentScore += 1;
+      
+      const finalPlayers = [...newState.players];
+      finalPlayers[activePlayerIndex] = winner;
+      newState.players = finalPlayers;
       return newState;
     }
 
     // If game continues, it counts as a play
     newState.playsThisTurn += 1;
-    const maxPlays = newPlayer.limitLifted ? Infinity : 2;
-    if (newState.playsThisTurn >= maxPlays || !hasEligibleMoves(newPlayer, newTargetNumber)) {
+    const maxPlays = newState.players[activePlayerIndex].limitLifted ? Infinity : 2;
+    if (newState.playsThisTurn >= maxPlays || !hasEligibleMoves(newState.players[activePlayerIndex], newTargetNumber)) {
       newState = endTurn(newState);
     }
     
@@ -332,6 +366,66 @@ export const playCard = (gameState: GameState, cardId: string, selectedValue?: n
   if (cardIndex === -1) return gameState;
 
   const card = player.hand[cardIndex];
+  
+  // Prevent playing unrevealed gamble cards
+  if (card.type === 'gamble' && !card.isGambleRevealed) {
+    return gameState;
+  }
+  
+  // Gamble Card Logic (Revealed Positive)
+  if (card.type === 'gamble' && card.isGambleRevealed && card.gambleChoice === 'positive') {
+    if (player.score + card.value > targetNumber) {
+      return gameState;
+    }
+    if (!player.cleanSlate && player.row.length > 0 && player.row[player.row.length - 1].value === card.value) {
+      return gameState;
+    }
+
+    const newHand = [...player.hand];
+    newHand.splice(cardIndex, 1);
+
+    const newRow = [...player.row, card];
+    const newScore = player.score + card.value;
+
+    // IMPORTANT: It does NOT affect the 1-2-3 cycle
+    const newPlayer = {
+      ...player,
+      hand: newHand,
+      row: newRow,
+      score: newScore,
+      // unlockedNumbers and highCardsUnlocked remain unchanged
+      cleanSlate: false,
+    };
+
+    const newPlayers = [...players];
+    newPlayers[activePlayerIndex] = newPlayer;
+
+    let newState: GameState = { ...gameState, players: newPlayers, playsThisTurn: gameState.playsThisTurn + 1 };
+
+    // Limit Lift Logic
+    if (card.value >= 4) {
+      const opponentIndex = (activePlayerIndex + 1) % newState.players.length;
+      const opponent = { ...newState.players[opponentIndex] };
+      opponent.limitLifted = true;
+      const newPlayersWithLimitLift = [...newState.players];
+      newPlayersWithLimitLift[opponentIndex] = opponent;
+      newState.players = newPlayersWithLimitLift;
+      newState.logs.push(`${newPlayer.name} lifted the limit for ${opponent.name} with a Gamble Card!`);
+    }
+
+    if (newScore === targetNumber) {
+      newPlayer.persistentScore += 1;
+      newState.status = 'roundOver';
+      newState.winnerId = newPlayer.id;
+      return newState;
+    }
+
+    const maxPlays = newPlayer.limitLifted ? Infinity : 2;
+    if (newState.playsThisTurn >= maxPlays || !hasEligibleMoves(newPlayer, targetNumber)) {
+      newState = endTurn(newState);
+    }
+    return newState;
+  }
   
   // Special Card Logic
   if (card.type === 'golden') {
@@ -624,6 +718,12 @@ export const findBestCardToPlay = (player: Player, targetNumber: number): Card |
       // AI can play golden card if at least value 1 fits
       return score + 1 <= targetNumber;
     }
+
+    if (c.type === 'gamble' && c.isGambleRevealed && c.gambleChoice === 'positive') {
+       if (score + c.value > targetNumber) return false;
+       if (!player.cleanSlate && lastCardInRow && lastCardInRow.value === c.value) return false;
+       return true;
+    }
     
     if (c.type === 'permanent' && c.permanentValue) {
        if (score + c.permanentValue > targetNumber) return false;
@@ -671,7 +771,11 @@ export const findBestCardToPlay = (player: Player, targetNumber: number): Card |
   const goldenCard = hand.find(c => c.type === 'golden');
   if (goldenCard) return goldenCard;
 
-  // 5. If no high card is suitable, play any other valid low card
+  // 5. Play revealed positive gamble cards if they fit
+  const gambleCard = hand.find(c => c.type === 'gamble' && c.isGambleRevealed && c.gambleChoice === 'positive' && isValidCard(c));
+  if (gambleCard) return gambleCard;
+
+  // 6. If no high card is suitable, play any other valid low card
   const lowCard = hand.find(c => c.value <= 3 && (!c.type || c.type === 'number' || (c.type === 'gamble' && c.isGambleRevealed && c.gambleChoice === 'positive')) && isValidCard(c));
   if (lowCard) return lowCard;
 
@@ -751,7 +855,7 @@ export const initGame = (isStrategicMode: boolean = false, gameMode: 'normal' | 
     {
       id: 1,
       name: 'Player 1',
-      hand: deck.splice(0, INITIAL_HAND_SIZE),
+      hand: [],
       row: [],
       score: 0,
       persistentScore: 0,
@@ -764,7 +868,7 @@ export const initGame = (isStrategicMode: boolean = false, gameMode: 'normal' | 
     {
       id: 2,
       name: 'Opponent',
-      hand: deck.splice(0, INITIAL_HAND_SIZE),
+      hand: [],
       row: [],
       score: 0,
       persistentScore: 0,
@@ -775,6 +879,21 @@ export const initGame = (isStrategicMode: boolean = false, gameMode: 'normal' | 
       cleanSlate: false,
     },
   ];
+
+  // Deal initial hands, ensuring no gamble cards
+  for (let p = 0; p < players.length; p++) {
+    let dealt = 0;
+    while (dealt < INITIAL_HAND_SIZE) {
+      const cardIndex = deck.findIndex(c => c.type !== 'gamble');
+      if (cardIndex !== -1) {
+        players[p].hand.push(deck.splice(cardIndex, 1)[0]);
+        dealt++;
+      } else {
+        // Should not happen with standard deck composition
+        break;
+      }
+    }
+  }
 
   return {
     players,

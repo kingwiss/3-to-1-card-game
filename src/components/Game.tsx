@@ -742,10 +742,17 @@ const Game: React.FC = () => {
                 const isMyTurnToPlay = activePlayerIndex === playerIndex && hasDrawnCardThisTurn && !drawnCard;
                 const isCardPlayable = 
                   isMyTurnToPlay && (
-                    card.type === 'golden' || (
+                    card.type === 'golden' || 
+                    (
                       player.score + card.value <= targetNumber &&
                       !(player.row.length > 0 && player.row[player.row.length - 1].value === card.value) &&
-                      !(card.value > 3 && !player.highCardsUnlocked)
+                      (
+                        (card.type === 'gamble' && card.isGambleRevealed && card.gambleChoice === 'positive') ||
+                        (
+                          (card.type !== 'gamble' || card.isGambleRevealed) && 
+                          !(card.value > 3 && !player.highCardsUnlocked)
+                        )
+                      )
                     )
                   );
 
