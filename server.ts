@@ -23,7 +23,7 @@ io.on('connection', (socket) => {
   console.log('Client connected:', socket.id);
   
   const updateOnlineUsers = () => {
-    const count = io.sockets.sockets.size;
+    const count = io.engine.clientsCount;
     io.emit('onlineUsers', count);
   };
 
@@ -31,7 +31,7 @@ io.on('connection', (socket) => {
   updateOnlineUsers();
 
   socket.on('requestOnlineUsers', () => {
-    socket.emit('onlineUsers', io.sockets.sockets.size);
+    socket.emit('onlineUsers', io.engine.clientsCount);
   });
 
   socket.on('disconnect', () => {

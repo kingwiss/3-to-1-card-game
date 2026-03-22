@@ -1,6 +1,6 @@
 import React, { createContext, useState, ReactNode, useEffect, useCallback } from 'react';
 import { GameState } from '../types';
-import { initGame, drawCard, addDrawnCardToHand, addDrawnCardToTarget, playCard, endTurn, startNextRound } from '../services/gameService';
+import { initGame, drawCard, addDrawnCardToHand, addDrawnCardToTarget, playCard, endTurn, startNextRound, handleGambleChoice } from '../services/gameService';
 import type { Peer, DataConnection } from 'peerjs';
 
 interface GameContextProps {
@@ -281,6 +281,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           case "drawCard": newState = drawCard(newState); break;
           case "addDrawnCardToHand": newState = addDrawnCardToHand(newState); break;
           case "addDrawnCardToTarget": newState = addDrawnCardToTarget(newState); break;
+          case "gambleChoice": newState = handleGambleChoice(newState, action.cardId, action.choice); break;
           case "playCard": newState = playCard(newState, action.cardId, action.selectedValue); break;
           case "endTurn": newState = endTurn(newState); break;
           case "startNextRound": newState = startNextRound(newState); break;

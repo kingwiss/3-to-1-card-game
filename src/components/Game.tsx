@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useGame } from '../hooks/useGame';
 import { useAuth } from '../contexts/AuthContext';
-import { drawCard, playCard, initGame, addDrawnCardToHand, addDrawnCardToTarget, startNextRound, endTurn, findBestCardToPlay, getBestGoldenCardValue } from '../services/gameService';
+import { drawCard, playCard, initGame, addDrawnCardToHand, addDrawnCardToTarget, startNextRound, endTurn, findBestCardToPlay, getBestGoldenCardValue, handleGambleChoice } from '../services/gameService';
 import { auth } from '../services/firebase';
 import Card from './Card';
 import Profile from './Profile';
@@ -118,7 +118,7 @@ const Game: React.FC = () => {
 
   useEffect(() => {
     // Connect to the socket server
-    const socket = io();
+    const socket = io({ transports: ['websocket'] });
     
     socket.on('connect', () => {
       console.log('Connected to socket server');
@@ -149,6 +149,15 @@ const Game: React.FC = () => {
     document.body.className = `theme-${themeColor}`;
   }, [themeColor]);
 
+  useEffect(() => {
+    const handleEditorPremium = () => {
+      setIsPremium(true);
+      setThemeColor('cyan');
+    };
+    window.addEventListener('editor_premium_unlocked', handleEditorPremium);
+    return () => window.removeEventListener('editor_premium_unlocked', handleEditorPremium);
+  }, []);
+
   // Sync user profile with game state
   useEffect(() => {
     if (userProfile && gameState.players[playerIndex].name !== userProfile.displayName) {
@@ -162,8 +171,9 @@ const Game: React.FC = () => {
       }
     }
     // Also sync premium status if needed for UI logic
-    if (userProfile?.isPremium !== isPremium) {
-      const newPremium = userProfile?.isPremium || false;
+    const newPremium = userProfile?.isPremium || false;
+    
+    if (newPremium !== isPremium) {
       setIsPremium(newPremium);
       // Update theme if it was the default
       if (themeColor === 'slate' || themeColor === 'teal-gray' || themeColor === 'cyan') {
@@ -172,7 +182,7 @@ const Game: React.FC = () => {
     }
   }, [userProfile, playerIndex, gameState.players, isPremium, setGameState, isPvP, sendAction]);
 
-  const { players, targetNumber, targetLineup, status, winnerId, activePlayerIndex, deck, hasDrawnCardThisTurn, drawnCard, round, pendingTargetDecision, gameMode } = gameState;
+  const { players, targetNumber, targetLineup, status, winnerId, activePlayerIndex, deck, hasDrawnCardThisTurn, drawnCard, round, pendingTargetDecision, pendingGambleDecision, gameMode } = gameState;
   
   const player = players[playerIndex];
   const opponent = players[playerIndex === 0 ? 1 : 0];
@@ -184,6 +194,18 @@ const Game: React.FC = () => {
         sendAction({ type: 'drawCard' });
       } else {
         const newGameState = drawCard(gameState);
+        setGameState(newGameState);
+      }
+    }
+  };
+
+  const onGambleChoice = (cardId: string, choice: 'positive' | 'negative') => {
+    if (status === 'playing' && activePlayerIndex === playerIndex) {
+      playSound('play');
+      if (isPvP) {
+        sendAction({ type: 'gambleChoice', cardId, choice });
+      } else {
+        const newGameState = handleGambleChoice(gameState, cardId, choice);
         setGameState(newGameState);
       }
     }
@@ -250,7 +272,10 @@ const Game: React.FC = () => {
         timer = setTimeout(() => {
           playSound('draw');
           setGameState(prevState => {
-            if (prevState.pendingTargetDecision) {
+            if (prevState.pendingGambleDecision) {
+              const choice = Math.random() < 0.1 ? 'negative' : 'positive';
+              return handleGambleChoice(prevState, prevState.drawnCard!.id, choice);
+            } else if (prevState.pendingTargetDecision) {
               // Simple AI: always add to hand for now
               return addDrawnCardToHand(prevState);
             } else {
@@ -261,7 +286,7 @@ const Game: React.FC = () => {
       } else {
         timer = setTimeout(() => {
           const aiPlayer = players[1];
-          
+
           if (gameState.isStrategicMode && gameState.playsThisTurn > 0) {
             if (Math.random() < 0.3) {
               setGameState(prevState => endTurn(prevState));
@@ -294,7 +319,7 @@ const Game: React.FC = () => {
   }, [activePlayerIndex, status, setGameState, isPvP, hasDrawnCardThisTurn, drawnCard, pendingTargetDecision, players, targetNumber, gameState.isStrategicMode, gameState.playsThisTurn]);
 
   useEffect(() => {
-    if (drawnCard && !pendingTargetDecision && activePlayerIndex === playerIndex) {
+    if (drawnCard && !pendingTargetDecision && !pendingGambleDecision && activePlayerIndex === playerIndex) {
       const timer = setTimeout(() => {
         playSound('draw');
         if (isPvP) {
@@ -305,7 +330,7 @@ const Game: React.FC = () => {
       }, 1000);
       return () => clearTimeout(timer);
     }
-  }, [drawnCard, pendingTargetDecision, setGameState, isPvP, activePlayerIndex, playerIndex, sendAction]);
+  }, [drawnCard, pendingTargetDecision, pendingGambleDecision, setGameState, isPvP, activePlayerIndex, playerIndex, sendAction]);
 
   useEffect(() => {
     if (!hasDrawnCardThisTurn) {
@@ -523,7 +548,7 @@ const Game: React.FC = () => {
                   key={card.id} 
                   className={`transition-all duration-300 transform-gpu ${isOpponentHandExpanded ? 'flex-shrink-0' : '-ml-8 first:ml-0 z-10'}`}
                 >
-                  <Card card={card} isHidden={true} />
+                  <Card card={card} isHidden={true} themeColor={themeColor} />
                 </div>
               ))}
             </div>
@@ -542,7 +567,7 @@ const Game: React.FC = () => {
                   key={card.id} 
                   className={`transition-all duration-300 transform-gpu ${isOpponentRowExpanded ? 'flex-shrink-0' : '-ml-8 first:ml-0 z-10'}`}
                 >
-                  <Card card={card} />
+                  <Card card={card} themeColor={themeColor} />
                 </div>
               ))}
             </div>
@@ -698,7 +723,7 @@ const Game: React.FC = () => {
                   key={card.id} 
                   className={`transition-all duration-300 transform-gpu ${isPlayerRowExpanded ? 'flex-shrink-0' : '-ml-8 first:ml-0 z-10'}`}
                 >
-                  <Card card={card} />
+                  <Card card={card} themeColor={themeColor} />
                 </div>
               ))}
             </div>
@@ -731,6 +756,8 @@ const Game: React.FC = () => {
                   >
                     <Card 
                       card={card} 
+                      themeColor={themeColor}
+                      onGambleChoice={onGambleChoice}
                       onClick={(id, e) => {
                         if (isHandExpanded && isCardPlayable) {
                           e?.stopPropagation();
@@ -751,9 +778,9 @@ const Game: React.FC = () => {
       <AnimatePresence>
         {drawnCard && (
           <motion.div
-            className={`absolute z-50 ${pendingTargetDecision ? '' : 'pointer-events-none'}`}
+            className={`absolute z-50 ${(pendingTargetDecision || pendingGambleDecision) ? '' : 'pointer-events-none'}`}
             initial={{ top: '50%', left: '25%', x: '-50%', y: '-50%', scale: 0.5, rotate: -15 }}
-            animate={{ top: '50%', left: '50%', x: '-50%', y: '-50%', scale: 1.5, rotate: 0 }}
+            animate={{ top: '50%', left: '50%', x: '-50%', y: '-50%', scale: 2.2, rotate: 0 }}
             exit={{ 
               top: activePlayerIndex === playerIndex ? '85%' : '15%', 
               left: '50%', 
@@ -765,7 +792,18 @@ const Game: React.FC = () => {
             transition={{ duration: 0.3, ease: 'easeOut' }}
           >
             <div className="flex flex-col items-center gap-4">
-              <Card card={drawnCard} isHidden={activePlayerIndex !== playerIndex} />
+              <Card card={drawnCard} isHidden={activePlayerIndex !== playerIndex} themeColor={themeColor} onGambleChoice={onGambleChoice} />
+              {pendingGambleDecision && activePlayerIndex === playerIndex && (
+                <div className="p-4 rounded-lg border-2 border-[var(--theme-700)] shadow-xl max-w-sm text-center text-xs" style={{ backgroundColor: 'var(--theme-900)' }}>
+                  <p className="mb-1 font-bold text-white">Gamble Card Drawn!</p>
+                  <p className="text-gray-300 leading-tight">
+                    Choose <span className="text-green-400 font-bold">Positive (+)</span> to add this card to your hand to play later.
+                  </p>
+                  <p className="text-gray-300 mt-1 leading-tight">
+                    Choose <span className="text-red-400 font-bold">Negative (-)</span> to play it immediately and deduct its value from the target number.
+                  </p>
+                </div>
+              )}
               {pendingTargetDecision && activePlayerIndex === playerIndex && (
                 <div className="flex gap-2 p-2 rounded-lg border-2 border-[var(--theme-700)] shadow-xl" style={{ backgroundColor: 'var(--theme-900)' }}>
                   <button 
@@ -1158,6 +1196,41 @@ const Game: React.FC = () => {
                     <p className="text-xs mt-1 text-theme-100">If you add a 4, 5, or 6 to the target number, your opponent's play limit is lifted for their next turn. They can play as many eligible cards as they want, surpassing the 2-card limit!</p>
                   </div>
                 </section>
+
+                <section>
+                  <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-full bg-theme-500 flex items-center justify-center text-xs text-white">4</div>
+                    Gamble Cards
+                  </h3>
+                  <p>When you draw a <strong>Gamble Card</strong>, you must make a high-stakes choice before its value is revealed:</p>
+                  
+                  <div className="grid grid-cols-2 gap-3 mt-3">
+                    <div className="bg-green-900/20 p-3 rounded-lg border border-green-700/30">
+                      <h4 className="font-bold text-green-400 text-xs mb-1 flex items-center gap-1">
+                        <div className="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center text-[10px] text-white">+</div>
+                        Positive (+)
+                      </h4>
+                      <p className="text-[10px] text-theme-300 leading-tight">
+                        The card is revealed and added to your <strong>hand</strong>. You can play it later like a normal card to increase your score.
+                      </p>
+                    </div>
+                    
+                    <div className="bg-red-900/20 p-3 rounded-lg border border-red-700/30">
+                      <h4 className="font-bold text-red-400 text-xs mb-1 flex items-center gap-1">
+                        <div className="w-4 h-4 rounded-full bg-red-500 flex items-center justify-center text-[10px] text-white">-</div>
+                        Negative (-)
+                      </h4>
+                      <p className="text-[10px] text-theme-300 leading-tight">
+                        The card is revealed and <strong>played immediately</strong>. Its value is <strong>deducted</strong> from the target number!
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 space-y-2 text-xs text-theme-300">
+                    <p><strong>Risk & Reward:</strong> If you choose Negative and the target number drops to exactly match your score, you <strong>win instantly</strong>. But if it drops below your score, you <strong>bust and lose</strong>!</p>
+                    <p className="text-amber-300/80 italic">Note: Negative gamble cards do not add to your score, they only lower the target.</p>
+                  </div>
+                </section>
                 
                 {isPremium && (
                   <section>
@@ -1422,12 +1495,12 @@ const Game: React.FC = () => {
                         key={num}
                         onClick={() => setGoldenCardValue(num)}
                         animate={{ 
-                          scale: isSelected ? 1.2 : 0.8,
-                          opacity: isSelected ? 1 : 0.5,
+                          scale: isSelected ? 1.2 : 0.9,
+                          opacity: isSelected ? 1 : 0.8,
                           y: isSelected ? 0 : 10,
                           rotateY: isSelected ? 0 : 20
                         }}
-                        className={`flex-shrink-0 w-16 h-24 rounded-lg flex items-center justify-center text-3xl font-bold shadow-lg transition-colors snap-center ${isSelected ? 'bg-gradient-to-br from-yellow-400 to-yellow-600 text-white border-2 border-white' : 'bg-[var(--theme-800)] text-theme-400 border border-[var(--theme-700)]'}`}
+                        className={`flex-shrink-0 w-16 h-24 rounded-lg flex items-center justify-center text-3xl font-bold shadow-lg transition-colors snap-center ${isSelected ? 'bg-gradient-to-br from-yellow-400 to-yellow-600 text-white border-2 border-white shadow-yellow-500/50' : 'bg-[var(--theme-700)] text-theme-100 border border-[var(--theme-600)]'}`}
                       >
                         {num}
                       </motion.button>

@@ -98,6 +98,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
           if (docSnap && docSnap.exists()) {
             currentProfile = docSnap.data() as UserProfile;
+            
+            // Weekly reset logic for logged-in users
+            const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+            const resetDate = currentProfile.specialGameResetDate || 0;
+            if (Date.now() - resetDate >= ONE_WEEK_MS) {
+              currentProfile.specialGamesPlayedThisWeek = 0;
+              currentProfile.specialGameResetDate = Date.now();
+              setDoc(docRef, { 
+                specialGamesPlayedThisWeek: 0, 
+                specialGameResetDate: Date.now() 
+              }, { merge: true }).catch(console.error);
+            }
           } else {
             // Create new profile or fallback if fetch failed
             currentProfile = {
@@ -147,7 +159,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const urlParams = new URLSearchParams(window.location.search);
             const isSuccess = urlParams.get('success') === 'true';
             
-            const finalPremiumStatus = isPremium || isSuccess;
+            const isEditor = window.location.hostname.includes('localhost') || window.location.hostname.includes('ais-dev');
+            const finalPremiumStatus = isEditor ? currentProfile.isPremium : (isPremium || isSuccess);
 
             if (currentProfile.isPremium !== finalPremiumStatus) {
               currentProfile.isPremium = finalPremiumStatus;

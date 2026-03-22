@@ -1,4 +1,4 @@
-export type CardType = 'number' | 'golden' | 'permanent' | 'sequence';
+export type CardType = 'number' | 'golden' | 'permanent' | 'sequence' | 'gamble';
 
 export interface Card {
   id: string;
@@ -6,6 +6,8 @@ export interface Card {
   type?: CardType;
   sequence?: number[];
   permanentValue?: number;
+  isGambleRevealed?: boolean;
+  gambleChoice?: 'positive' | 'negative';
 }
 
 export interface Player {
@@ -50,5 +52,6 @@ export interface GameState {
   drawnCard: Card | null;
   round: number;
   pendingTargetDecision: boolean;
+  pendingGambleDecision: boolean;
   isStrategicMode: boolean;
 }

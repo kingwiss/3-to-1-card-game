@@ -20,7 +20,7 @@ const Login: React.FC<LoginProps> = ({ onClose }) => {
 
   const handleGoogleLogin = async () => {
     try {
-      await signInWithPopup(auth, googleProvider);
+      const result = await signInWithPopup(auth, googleProvider);
       onClose?.();
     } catch (err: any) {
       setError(err.message);
@@ -38,16 +38,18 @@ const Login: React.FC<LoginProps> = ({ onClose }) => {
         return;
       }
 
+      let userCredential;
       if (isLogin) {
-        await signInWithEmailAndPassword(auth, email, password);
+        userCredential = await signInWithEmailAndPassword(auth, email, password);
       } else {
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        userCredential = await createUserWithEmailAndPassword(auth, email, password);
         if (username) {
           await updateFirebaseAuthProfile(userCredential.user, { displayName: username });
           const docRef = doc(db, 'users', userCredential.user.uid);
           await setDoc(docRef, { displayName: username }, { merge: true });
         }
       }
+
       onClose?.();
     } catch (err: any) {
       setError(err.message);

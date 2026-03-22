@@ -36,6 +36,18 @@ const createDeck = (gameMode: 'normal' | 'special' = 'normal'): Card[] => {
     });
   }
 
+  // Replace 5 random number cards with gamble cards
+  const numberCardIndices = deck.map((c, i) => c.type === 'number' ? i : -1).filter(i => i !== -1);
+  const gambleCount = 5;
+  for (let i = 0; i < gambleCount; i++) {
+    if (numberCardIndices.length === 0) break;
+    const randomIndex = Math.floor(Math.random() * numberCardIndices.length);
+    const deckIndex = numberCardIndices[randomIndex];
+    deck[deckIndex].type = 'gamble';
+    deck[deckIndex].isGambleRevealed = false;
+    numberCardIndices.splice(randomIndex, 1);
+  }
+
   return deck;
 };
 
@@ -135,6 +147,7 @@ export const endTurn = (gameState: GameState): GameState => {
     activePlayerIndex: newActivePlayerIndex,
     playsThisTurn: 0,
     hasDrawnCardThisTurn: false,
+    pendingGambleDecision: false,
   };
 };
 
@@ -150,11 +163,15 @@ export const drawCard = (gameState: GameState): GameState => {
   const card = newDeck.pop()!;
 
   let pendingTargetDecision = false;
+  let pendingGambleDecision = false;
+  
   if (card.type === 'number' && card.value >= 4 && card.value <= 6) {
     pendingTargetDecision = true;
+  } else if (card.type === 'gamble') {
+    pendingGambleDecision = true;
   }
 
-  return { ...state, deck: newDeck, drawnCard: card, hasDrawnCardThisTurn: true, pendingTargetDecision };
+  return { ...state, deck: newDeck, drawnCard: card, hasDrawnCardThisTurn: true, pendingTargetDecision, pendingGambleDecision };
 };
 
 export const addDrawnCardToHand = (gameState: GameState): GameState => {
@@ -203,6 +220,107 @@ export const addDrawnCardToTarget = (gameState: GameState): GameState => {
   }
 
   return newState;
+};
+
+export const handleGambleChoice = (gameState: GameState, cardId: string, choice: 'positive' | 'negative'): GameState => {
+  const { players, activePlayerIndex, drawnCard } = gameState;
+  if (!drawnCard || drawnCard.id !== cardId || drawnCard.type !== 'gamble' || drawnCard.isGambleRevealed) {
+    return gameState;
+  }
+
+  const player = players[activePlayerIndex];
+  let newState = { ...gameState, pendingGambleDecision: false };
+  const newPlayers = [...players];
+  const newPlayer = { ...player };
+
+  // Reveal the card
+  const revealedCard = { ...drawnCard, isGambleRevealed: true, gambleChoice: choice };
+  newState.drawnCard = null; // Clear drawn card as it's processed
+
+  if (choice === 'positive') {
+    // Goes to hand, revealed as positive
+    newPlayer.hand = [...newPlayer.hand, revealedCard];
+    newPlayers[activePlayerIndex] = newPlayer;
+    newState.players = newPlayers;
+    newState.logs = [...newState.logs, `${newPlayer.name} chose Positive for a Gamble Card and revealed a ${revealedCard.value}! It goes to their hand.`];
+    
+    if (!hasEligibleMoves(newPlayer, newState.targetNumber)) {
+      newState = endTurn(newState);
+    }
+    return newState;
+  } else {
+    // Negative choice: must be played immediately to row, bypassing normal restrictions
+    newState.logs = [...newState.logs, `${newPlayer.name} chose Negative for a Gamble Card and revealed a ${revealedCard.value}! It is played immediately.`];
+    
+    // Add to row
+    const newRow = [...newPlayer.row, revealedCard];
+    const newScore = newPlayer.score; // Negative gamble card does not add to score
+    const newTargetNumber = newState.targetNumber - revealedCard.value;
+    
+    let newUnlockedNumbers = { ...newPlayer.unlockedNumbers };
+    let newHighCardsUnlocked = newPlayer.highCardsUnlocked;
+
+    if (revealedCard.value >= 1 && revealedCard.value <= 3) {
+      newUnlockedNumbers[revealedCard.value as 1 | 2 | 3] = true;
+    }
+
+    if (newUnlockedNumbers[1] && newUnlockedNumbers[2] && newUnlockedNumbers[3]) {
+      newHighCardsUnlocked = true;
+    }
+
+    if (revealedCard.value > 3) {
+      newUnlockedNumbers = { 1: false, 2: false, 3: false };
+      newHighCardsUnlocked = false;
+    }
+
+    newPlayer.row = newRow;
+    newPlayer.score = newScore;
+    newPlayer.unlockedNumbers = newUnlockedNumbers;
+    newPlayer.highCardsUnlocked = newHighCardsUnlocked;
+    newPlayer.cleanSlate = false;
+    newPlayers[activePlayerIndex] = newPlayer;
+    newState.players = newPlayers;
+    
+    // Limit Lift Logic
+    if (revealedCard.value >= 4) {
+      const opponentIndex = (activePlayerIndex + 1) % newState.players.length;
+      const opponent = { ...newState.players[opponentIndex] };
+      opponent.limitLifted = true;
+      const newPlayersWithLimitLift = [...newState.players];
+      newPlayersWithLimitLift[opponentIndex] = opponent;
+      newState.players = newPlayersWithLimitLift;
+      newState.logs.push(`${newPlayer.name} lifted the limit for ${opponent.name} with a high Gamble Card!`);
+    }
+
+    newState.targetNumber = newTargetNumber;
+    newState.logs = [...newState.logs, `The target number is reduced by ${revealedCard.value} to ${newTargetNumber}! ${newPlayer.name}'s score is now ${newScore}.`];
+
+    // Check win/loss
+    if (newTargetNumber < newScore) {
+      newState.logs = [...newState.logs, `${newPlayer.name} busted because the target number (${newTargetNumber}) fell below their score (${newScore})! They lose the round.`];
+      newState.status = 'roundOver';
+      // Opponent wins
+      const opponentIndex = (activePlayerIndex + 1) % players.length;
+      newState.winnerId = players[opponentIndex].id;
+      players[opponentIndex].persistentScore += 1;
+      return newState;
+    } else if (newScore === newTargetNumber) {
+      newState.logs = [...newState.logs, `${newPlayer.name} hit the target number exactly! They win the round.`];
+      newPlayer.persistentScore += 1;
+      newState.status = 'roundOver';
+      newState.winnerId = newPlayer.id;
+      return newState;
+    }
+
+    // If game continues, it counts as a play
+    newState.playsThisTurn += 1;
+    const maxPlays = newPlayer.limitLifted ? Infinity : 2;
+    if (newState.playsThisTurn >= maxPlays || !hasEligibleMoves(newPlayer, newTargetNumber)) {
+      newState = endTurn(newState);
+    }
+    
+    return newState;
+  }
 };
 
 export const playCard = (gameState: GameState, cardId: string, selectedValue?: number): GameState => {
@@ -530,7 +648,7 @@ export const findBestCardToPlay = (player: Player, targetNumber: number): Card |
   for (let i = 1; i <= 3; i++) {
     if (!unlockedNumbers[i as 1 | 2 | 3]) {
       // Check for normal cards
-      const cardToPlay = hand.find(c => c.value === i && (!c.type || c.type === 'number') && isValidCard(c));
+      const cardToPlay = hand.find(c => c.value === i && (!c.type || c.type === 'number' || (c.type === 'gamble' && c.isGambleRevealed && c.gambleChoice === 'positive')) && isValidCard(c));
       if (cardToPlay) return cardToPlay;
       
       // Check for permanent cards
@@ -541,7 +659,7 @@ export const findBestCardToPlay = (player: Player, targetNumber: number): Card |
 
   // 2. If cycle is complete, consider playing a high card
   if (highCardsUnlocked) {
-    const highCard = hand.find(c => c.value > 3 && (!c.type || c.type === 'number') && isValidCard(c));
+    const highCard = hand.find(c => c.value > 3 && (!c.type || c.type === 'number' || (c.type === 'gamble' && c.isGambleRevealed && c.gambleChoice === 'positive')) && isValidCard(c));
     if (highCard) return highCard;
   }
   
@@ -554,7 +672,7 @@ export const findBestCardToPlay = (player: Player, targetNumber: number): Card |
   if (goldenCard) return goldenCard;
 
   // 5. If no high card is suitable, play any other valid low card
-  const lowCard = hand.find(c => c.value <= 3 && isValidCard(c));
+  const lowCard = hand.find(c => c.value <= 3 && (!c.type || c.type === 'number' || (c.type === 'gamble' && c.isGambleRevealed && c.gambleChoice === 'positive')) && isValidCard(c));
   if (lowCard) return lowCard;
 
   return null;
@@ -619,6 +737,7 @@ export const startNextRound = (gameState: GameState): GameState => {
     hasDrawnCardThisTurn: false,
     drawnCard: null,
     pendingTargetDecision: false,
+    pendingGambleDecision: false,
   };
 };
 
@@ -675,6 +794,7 @@ export const initGame = (isStrategicMode: boolean = false, gameMode: 'normal' | 
     drawnCard: null,
     round: 1,
     pendingTargetDecision: false,
+    pendingGambleDecision: false,
     isStrategicMode,
     gameMode,
   };
