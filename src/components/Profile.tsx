@@ -1,12 +1,36 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { motion } from 'framer-motion';
-import { User, Edit2, Save, X, Trophy, Swords, History } from 'lucide-react';
+import { User, Edit2, Save, X, Trophy, Swords, History, CreditCard } from 'lucide-react';
 
 const Profile: React.FC<{ onClose: () => void }> = ({ onClose }) => {
-  const { userProfile, updateProfile } = useAuth();
+  const { user, userProfile, updateProfile } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [newName, setNewName] = useState(userProfile?.displayName || '');
+
+  const handleManageSubscription = async () => {
+    try {
+      const response = await fetch('/api/create-portal-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: user?.email,
+          returnUrl: window.location.origin,
+        }),
+      });
+      const data = await response.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        throw new Error(data.error || 'Failed to create portal session');
+      }
+    } catch (error) {
+      console.error('Error opening portal:', error);
+      alert('Failed to open subscription portal.');
+    }
+  };
 
   const handleSave = async () => {
     if (newName.trim()) {
@@ -99,9 +123,19 @@ const Profile: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           </div>
         </div>
 
-        <div className="text-center text-slate-500 text-xs">
+        <div className="text-center text-slate-500 text-xs mb-6">
           Member since {new Date().getFullYear()}
         </div>
+
+        {userProfile.isPremium && (
+          <button
+            onClick={handleManageSubscription}
+            className="w-full py-3 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 mb-2"
+          >
+            <CreditCard size={18} />
+            Manage Subscription
+          </button>
+        )}
       </motion.div>
     </motion.div>
   );

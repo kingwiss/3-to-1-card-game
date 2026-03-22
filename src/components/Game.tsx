@@ -10,7 +10,7 @@ import PremiumModal from './PremiumModal';
 import SpecialGameModal from './SpecialGameModal';
 import { motion, AnimatePresence } from 'framer-motion';
 import { playSound } from '../utils/sound';
-import { ChevronUp, ChevronDown, Users, User, BookOpen, Star, Palette, X, Sparkles, LogIn, LogOut, Gamepad2 } from 'lucide-react';
+import { ChevronUp, ChevronDown, Users, User, BookOpen, Star, Palette, X, Sparkles, LogIn, LogOut, Gamepad2, Crown } from 'lucide-react';
 import { io } from 'socket.io-client';
 
 const ColorButton = ({ color, index, angle, themeColor, setThemeColor, isPremium }: any) => {
@@ -69,6 +69,12 @@ const Game: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [floatingModeText, setFloatingModeText] = useState<string | null>(null);
   const [isPremium, setIsPremium] = useState(userProfile?.isPremium || false);
+
+  useEffect(() => {
+    if (userProfile) {
+      setIsPremium(userProfile.isPremium);
+    }
+  }, [userProfile]);
   // Theme color is local state and not synced with opponent
   const [themeColor, setThemeColor] = useState(userProfile?.isPremium ? 'cyan' : 'teal-gray');
   const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
@@ -848,117 +854,102 @@ const Game: React.FC = () => {
 
       {/* Bottom Controls */}
       <div className="absolute bottom-4 left-4 flex flex-col items-start gap-4 z-40">
-        {/* Premium Left Menu */}
-        <AnimatePresence>
-          {isPremium && (
-            <div className="flex flex-col items-start gap-3">
-              <AnimatePresence>
-                {isLeftMenuOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 20 }}
-                    className="flex flex-col items-start gap-3"
-                  >
-                    {/* Color Picker Button */}
-                    <div className="relative">
-                      <button
-                        onClick={() => setIsColorPickerOpen(!isColorPickerOpen)}
-                        className="w-12 h-12 rounded-full shadow-lg flex items-center justify-center bg-gradient-to-tr from-red-500 via-green-500 to-blue-500 text-white hover:scale-110 transition-transform z-50 relative"
-                        title="Change Theme"
-                      >
-                        <Palette size={20} />
-                      </button>
-                      
-                      <AnimatePresence>
-                        {isColorPickerOpen && (
-                          <motion.div 
-                            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-0 h-0 z-40"
-                          >
-                            {['teal-gray', 'blue', 'red', 'emerald', 'purple', 'orange', 'pink', 'cyan'].map((color, index) => {
-                              const totalColors = 8;
-                              // Static arc from -110 to 20 degrees (130 degree span)
-                              // This ensures all items are visible and clickable
-                              const startAngle = -110;
-                              const endAngle = 20;
-                              const span = endAngle - startAngle;
-                              const angle = startAngle + (index * span) / (totalColors - 1);
-                              
-                              return (
-                                <ColorButton 
-                                  key={color}
-                                  color={color}
-                                  index={index}
-                                  angle={angle}
-                                  themeColor={themeColor}
-                                  setThemeColor={setThemeColor}
-                                  isPremium={isPremium}
-                                />
-                              );
-                            })}
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-
-                    {/* Special Cards Game Button */}
-                    <div className="relative">
-                      <motion.div
-                        animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.8, 0.5] }}
-                        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                        className="absolute inset-0 bg-purple-500 rounded-full blur-md"
-                      />
-                      <button 
-                        onClick={() => {
-                          if (isPremium) playSound('play');
-                          setIsGameModeModalOpen(true);
-                          setIsLeftMenuOpen(false);
-                        }}
-                        className="relative w-12 h-12 rounded-full shadow-lg flex items-center justify-center bg-purple-600 hover:bg-purple-500 text-white hover:scale-110 transition-transform border-2 border-purple-400 z-10"
-                        title="Special Cards Game"
-                      >
-                        <Gamepad2 size={24} />
-                      </button>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              <button
-                onClick={() => setIsLeftMenuOpen(!isLeftMenuOpen)}
-                className="w-14 h-14 border-2 border-theme-500 rounded-full flex items-center justify-center text-white hover:bg-theme-600 transition-colors shadow-xl"
-                style={{ backgroundColor: 'var(--theme-800)' }}
+        {/* Unified Left Menu for both Free and Premium */}
+        <div className="flex flex-col items-start gap-3">
+          <AnimatePresence>
+            {isLeftMenuOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 20 }}
+                className="flex flex-col items-start gap-3"
               >
-                <motion.div animate={{ rotate: isLeftMenuOpen ? 180 : 0 }}>
-                  <ChevronUp size={24} />
-                </motion.div>
-              </button>
-            </div>
-          )}
-        </AnimatePresence>
+                {/* Color Picker Button */}
+                <div className="relative">
+                  <button
+                    onClick={() => {
+                      if (isPremium) {
+                        setIsColorPickerOpen(!isColorPickerOpen);
+                      } else {
+                        setShowPremiumModal(true);
+                      }
+                    }}
+                    className={`w-12 h-12 rounded-full shadow-lg flex items-center justify-center bg-gradient-to-tr from-red-500 via-green-500 to-blue-500 text-white hover:scale-110 transition-transform z-50 relative ${!isPremium ? 'grayscale-[0.5] opacity-80' : ''}`}
+                    title="Change Theme"
+                  >
+                    <Palette size={20} />
+                    {!isPremium && <Crown size={12} className="absolute -top-1 -right-1 text-yellow-400 fill-yellow-400" />}
+                  </button>
+                  
+                  <AnimatePresence>
+                    {isColorPickerOpen && isPremium && (
+                      <motion.div 
+                        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-0 h-0 z-40"
+                      >
+                        {['teal-gray', 'blue', 'red', 'emerald', 'purple', 'orange', 'pink', 'cyan'].map((color, index) => {
+                          const totalColors = 8;
+                          const startAngle = -110;
+                          const endAngle = 20;
+                          const span = endAngle - startAngle;
+                          const angle = startAngle + (index * span) / (totalColors - 1);
+                          
+                          return (
+                            <ColorButton 
+                              key={color}
+                              color={color}
+                              index={index}
+                              angle={angle}
+                              themeColor={themeColor}
+                              setThemeColor={setThemeColor}
+                              isPremium={isPremium}
+                            />
+                          );
+                        })}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
 
-        {/* Free User Special Game Button */}
-        {!isPremium && (
-          <div className="relative">
-            <motion.div
-              animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.8, 0.5] }}
-              transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-              className="absolute inset-0 rounded-full blur-md"
-              style={{ background: 'linear-gradient(135deg, #a855f7, #1e3a8a)' }}
-            />
-            <button 
-              onClick={() => {
-                playSound('play');
-                setShowSpecialGameModal(true);
-              }}
-              className="relative w-14 h-14 rounded-full shadow-xl flex items-center justify-center text-white hover:scale-110 transition-transform border-2 border-purple-300/50 z-10"
-              style={{ background: 'linear-gradient(135deg, #c084fc, #1e3a8a)' }}
-              title="Special Cards Game"
-            >
-              <Gamepad2 size={28} />
-            </button>
-          </div>
-        )}
+                {/* Special Cards Game Button */}
+                <div className="relative">
+                  <motion.div
+                    animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.8, 0.5] }}
+                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                    className="absolute inset-0 bg-purple-500 rounded-full blur-md"
+                  />
+                  <button 
+                    onClick={() => {
+                      if (isPremium) {
+                        playSound('play');
+                        setIsGameModeModalOpen(true);
+                        setIsLeftMenuOpen(false);
+                      } else {
+                        playSound('play');
+                        setShowSpecialGameModal(true);
+                        setIsLeftMenuOpen(false);
+                      }
+                    }}
+                    className="relative w-12 h-12 rounded-full shadow-lg flex items-center justify-center bg-purple-600 hover:bg-purple-500 text-white hover:scale-110 transition-transform border-2 border-purple-400 z-10"
+                    title="Special Cards Game"
+                  >
+                    <Gamepad2 size={24} />
+                    {!isPremium && <Crown size={12} className="absolute -top-1 -right-1 text-yellow-400 fill-yellow-400" />}
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <button
+            onClick={() => setIsLeftMenuOpen(!isLeftMenuOpen)}
+            className="w-14 h-14 border-2 border-theme-500 rounded-full flex items-center justify-center text-white hover:bg-theme-600 transition-colors shadow-xl"
+            style={{ backgroundColor: 'var(--theme-800)' }}
+          >
+            <motion.div animate={{ rotate: isLeftMenuOpen ? 180 : 0 }}>
+              <ChevronUp size={24} />
+            </motion.div>
+          </button>
+        </div>
 
         {/* Strategic Mode Toggle */}
         <div className="relative">
@@ -1570,17 +1561,20 @@ const Game: React.FC = () => {
           setShowPremiumModal(true);
         }}
         specialGamesPlayedThisWeek={userProfile ? (userProfile.specialGamesPlayedThisWeek || 0) : localSpecialGamesPlayed}
+        isPremium={isPremium}
         onPlay={() => {
           const gamesPlayed = userProfile ? (userProfile.specialGamesPlayedThisWeek || 0) : localSpecialGamesPlayed;
-          if (gamesPlayed < 2) {
-            if (userProfile) {
-              updateProfile({ specialGamesPlayedThisWeek: gamesPlayed + 1 });
-            } else {
-              const newPlayed = gamesPlayed + 1;
-              setLocalSpecialGamesPlayed(newPlayed);
-              const storedData = localStorage.getItem('specialGamesTracking');
-              const resetDate = storedData ? JSON.parse(storedData).resetDate : Date.now();
-              localStorage.setItem('specialGamesTracking', JSON.stringify({ played: newPlayed, resetDate }));
+          if (isPremium || gamesPlayed < 2) {
+            if (!isPremium) {
+              if (userProfile) {
+                updateProfile({ specialGamesPlayedThisWeek: gamesPlayed + 1 });
+              } else {
+                const newPlayed = gamesPlayed + 1;
+                setLocalSpecialGamesPlayed(newPlayed);
+                const storedData = localStorage.getItem('specialGamesTracking');
+                const resetDate = storedData ? JSON.parse(storedData).resetDate : Date.now();
+                localStorage.setItem('specialGamesTracking', JSON.stringify({ played: newPlayed, resetDate }));
+              }
             }
             setShowSpecialGameModal(false);
             

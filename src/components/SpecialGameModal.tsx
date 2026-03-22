@@ -8,11 +8,12 @@ interface SpecialGameModalProps {
   onPlay: () => void;
   onGetPremium: () => void;
   specialGamesPlayedThisWeek: number;
+  isPremium: boolean;
 }
 
-const SpecialGameModal: React.FC<SpecialGameModalProps> = ({ isOpen, onClose, onPlay, onGetPremium, specialGamesPlayedThisWeek }) => {
+const SpecialGameModal: React.FC<SpecialGameModalProps> = ({ isOpen, onClose, onPlay, onGetPremium, specialGamesPlayedThisWeek, isPremium }) => {
   const gamesLeft = Math.max(0, 2 - specialGamesPlayedThisWeek);
-  const canPlay = gamesLeft > 0;
+  const canPlay = isPremium || gamesLeft > 0;
 
   return (
     <AnimatePresence>
@@ -113,22 +114,30 @@ const SpecialGameModal: React.FC<SpecialGameModalProps> = ({ isOpen, onClose, on
                   <div className="flex items-center gap-1 mb-0.5">
                     <RefreshCw size={12} className="text-amber-400" />
                     <span className="text-[10px] text-slate-300 leading-tight">
-                      <strong className="text-white">2 free plays</strong> / week
+                      {isPremium ? (
+                        <strong className="text-white">Unlimited plays</strong>
+                      ) : (
+                        <><strong className="text-white">2 free plays</strong> / week</>
+                      )}
                     </span>
                   </div>
-                  <span className="text-[10px] text-amber-400 font-bold leading-tight">{gamesLeft} plays remaining</span>
+                  {!isPremium && (
+                    <span className="text-[10px] text-amber-400 font-bold leading-tight">{gamesLeft} plays remaining</span>
+                  )}
                 </div>
 
-                <button
-                  onClick={onGetPremium}
-                  className="flex-1 py-2 px-2 rounded-[10px] text-xs font-bold text-white bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-400 hover:to-yellow-500 transition-all shadow-md flex flex-col items-center justify-center gap-1 opacity-75 hover:opacity-100 active:opacity-100"
-                >
-                  <div className="flex items-center gap-1">
-                    <Star size={14} className="fill-current" />
-                    <span>Get Premium</span>
-                  </div>
-                  <span className="text-[10px] font-normal opacity-90 leading-tight">Unlimited Plays</span>
-                </button>
+                {!isPremium && (
+                  <button
+                    onClick={onGetPremium}
+                    className="flex-1 py-2 px-2 rounded-[10px] text-xs font-bold text-white bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-400 hover:to-yellow-500 transition-all shadow-md flex flex-col items-center justify-center gap-1 opacity-75 hover:opacity-100 active:opacity-100"
+                  >
+                    <div className="flex items-center gap-1">
+                      <Star size={14} className="fill-current" />
+                      <span>Get Premium</span>
+                    </div>
+                    <span className="text-[10px] font-normal opacity-90 leading-tight">Unlimited Plays</span>
+                  </button>
+                )}
               </div>
 
               {/* Bottom Row: Exit & Play */}
@@ -148,7 +157,7 @@ const SpecialGameModal: React.FC<SpecialGameModalProps> = ({ isOpen, onClose, on
                       : 'bg-slate-700 cursor-not-allowed'
                   }`}
                 >
-                  {canPlay ? 'Play Free Game' : 'No Plays Left'}
+                  {isPremium ? 'Play Game' : (canPlay ? 'Play Free Game' : 'No Plays Left')}
                 </button>
               </div>
             </div>
