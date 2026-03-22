@@ -815,17 +815,31 @@ export const startNextRound = (gameState: GameState): GameState => {
   const targetLineup = deck.splice(0, TARGET_LINEUP_SIZE);
   const targetNumber = targetLineup.reduce((sum, card) => sum + (card.value || 0), 0); // Handle golden cards having 0 value initially
 
-  const newPlayers: Player[] = players.map(p => ({
-    ...p,
-    hand: deck.splice(0, INITIAL_HAND_SIZE),
-    row: [],
-    score: 0,
-    unlockedNumbers: { 1: false, 2: false, 3: false },
-    cycleTracker: { 1: false, 2: false, 3: false },
-    highCardsUnlocked: false,
-    limitLifted: false,
-    cleanSlate: false,
-  }));
+  const newPlayers: Player[] = players.map(p => {
+    const newPlayer = {
+      ...p,
+      hand: [] as Card[],
+      row: [],
+      score: 0,
+      unlockedNumbers: { 1: false, 2: false, 3: false },
+      cycleTracker: { 1: false, 2: false, 3: false },
+      highCardsUnlocked: false,
+      limitLifted: false,
+      cleanSlate: false,
+    };
+
+    let dealt = 0;
+    while (dealt < INITIAL_HAND_SIZE) {
+      const cardIndex = deck.findIndex(c => c.type !== 'gamble');
+      if (cardIndex !== -1) {
+        newPlayer.hand.push(deck.splice(cardIndex, 1)[0]);
+        dealt++;
+      } else {
+        break;
+      }
+    }
+    return newPlayer;
+  });
 
   return {
     ...gameState,
