@@ -6,7 +6,7 @@ import { User, Edit2, Save, X, Trophy, Swords, History, CreditCard } from 'lucid
 const Profile: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const { user, userProfile, updateProfile } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
-  const [newName, setNewName] = useState(userProfile?.displayName || '');
+  const [newName, setNewName] = useState(userProfile?.displayName || user?.displayName || 'Player');
 
   const handleManageSubscription = async () => {
     try {
@@ -66,7 +66,7 @@ const Profile: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             {userProfile.photoURL ? (
               <img src={userProfile.photoURL} alt="Profile" className="w-full h-full object-cover" />
             ) : (
-              userProfile.displayName.charAt(0).toUpperCase()
+              (userProfile.displayName || 'P').charAt(0).toUpperCase()
             )}
           </div>
 
@@ -88,7 +88,7 @@ const Profile: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             </div>
           ) : (
             <div className="flex items-center gap-2">
-              <h2 className="text-2xl font-bold text-white">{userProfile.displayName}</h2>
+              <h2 className="text-2xl font-bold text-white">{userProfile.displayName || 'Player'}</h2>
               <button
                 onClick={() => setIsEditing(true)}
                 className="text-slate-400 hover:text-blue-400 transition-colors"
@@ -108,12 +108,12 @@ const Profile: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         <div className="grid grid-cols-4 gap-2 mb-6">
           <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700 flex flex-col items-center">
             <Trophy className="text-yellow-400 mb-1" size={20} />
-            <span className="text-xl font-bold text-white">{userProfile.wins}</span>
+            <span className="text-xl font-bold text-white">{userProfile.wins || 0}</span>
             <span className="text-[10px] text-slate-400 uppercase tracking-wider">Wins</span>
           </div>
           <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700 flex flex-col items-center">
             <Swords className="text-red-400 mb-1" size={20} />
-            <span className="text-xl font-bold text-white">{userProfile.losses}</span>
+            <span className="text-xl font-bold text-white">{userProfile.losses || 0}</span>
             <span className="text-[10px] text-slate-400 uppercase tracking-wider">Losses</span>
           </div>
           <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700 flex flex-col items-center">
@@ -123,7 +123,7 @@ const Profile: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           </div>
           <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700 flex flex-col items-center">
             <History className="text-green-400 mb-1" size={20} />
-            <span className="text-xl font-bold text-white">{userProfile.gamesPlayed}</span>
+            <span className="text-xl font-bold text-white">{userProfile.gamesPlayed || 0}</span>
             <span className="text-[10px] text-slate-400 uppercase tracking-wider">Games</span>
           </div>
         </div>

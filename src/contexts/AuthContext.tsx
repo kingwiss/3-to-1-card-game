@@ -83,7 +83,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     const unsubscribe = onSnapshot(docRef, async (docSnap) => {
       if (docSnap.exists()) {
-        const currentProfile = docSnap.data() as UserProfile;
+        const data = docSnap.data();
+        const currentProfile: UserProfile = {
+          uid: data.uid || user.uid,
+          displayName: data.displayName || user.displayName || 'Player',
+          photoURL: data.photoURL || user.photoURL || '',
+          wins: data.wins || 0,
+          losses: data.losses || 0,
+          draws: data.draws || 0,
+          gamesPlayed: data.gamesPlayed || 0,
+          isPremium: data.isPremium || false,
+          specialGamesPlayedThisWeek: data.specialGamesPlayedThisWeek || 0,
+          specialGameResetDate: data.specialGameResetDate || Date.now(),
+        };
         
         // Weekly reset logic
         const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
