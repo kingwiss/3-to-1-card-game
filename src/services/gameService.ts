@@ -150,7 +150,7 @@ export const reshuffleDeck = (gameState: GameState): GameState => {
 };
 
 export const endTurn = (gameState: GameState): GameState => {
-  const { players, activePlayerIndex } = gameState;
+  const { players, activePlayerIndex, targetNumber } = gameState;
 
   // Reset limitLifted for the player whose turn is ending
   const currentPlayer = { ...players[activePlayerIndex] };
@@ -158,11 +158,33 @@ export const endTurn = (gameState: GameState): GameState => {
   const newPlayers = [...players];
   newPlayers[activePlayerIndex] = currentPlayer;
 
-  const newActivePlayerIndex = (activePlayerIndex + 1) % players.length;
+  const nextPlayerIndex = (activePlayerIndex + 1) % players.length;
+  const nextPlayer = players[nextPlayerIndex];
+
+  // Check if the next player has any eligible moves
+  if (!hasEligibleMoves(nextPlayer, targetNumber)) {
+    // If next player has no moves, check if current player has any moves left (they just ended their turn, but maybe they could have played more?)
+    // Actually, if we are here, it means the current player already decided to end their turn or was forced to.
+    // So we check if the NEXT player is also stuck.
+    // If BOTH are stuck, it's a draw for the round.
+    
+    // Check if current player (who just ended) would have moves if it were their turn again
+    // (This is a bit simplified, but if both players have no moves, it's a draw)
+    if (!hasEligibleMoves(currentPlayer, targetNumber)) {
+      return {
+        ...gameState,
+        players: newPlayers,
+        status: 'roundOver',
+        winnerId: null, // Draw
+        logs: [...gameState.logs, "Both players are stuck! The round ends in a draw."]
+      };
+    }
+  }
+
   return {
     ...gameState,
     players: newPlayers,
-    activePlayerIndex: newActivePlayerIndex,
+    activePlayerIndex: nextPlayerIndex,
     playsThisTurn: 0,
     hasDrawnCardThisTurn: false,
     pendingGambleDecision: false,

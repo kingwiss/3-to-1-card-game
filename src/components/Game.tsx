@@ -350,14 +350,18 @@ const Game: React.FC = () => {
     if (status === 'roundOver') {
       if (winnerId === player.id) {
         playSound('win');
-      } else {
+      } else if (winnerId === opponent.id) {
         playSound('lose');
+      } else {
+        // Draw
       }
 
       if (userProfile && !hasRecordedGame) {
         const isWin = winnerId === player.id;
         const isLoss = winnerId === opponent.id;
-        const isDraw = winnerId === null; // Should not happen in roundOver but for safety
+        const isDraw = winnerId === null;
+        
+        console.log('Recording round result:', { isWin, isLoss, isDraw, winnerId, playerId: player.id });
         
         updateProfile({
           gamesPlayed: (userProfile.gamesPlayed || 0) + 1,
@@ -378,6 +382,8 @@ const Game: React.FC = () => {
         const isWin = player.persistentScore > opponent.persistentScore;
         const isLoss = player.persistentScore < opponent.persistentScore;
         const isDraw = player.persistentScore === opponent.persistentScore;
+        
+        console.log('Recording game result:', { isWin, isLoss, isDraw, playerScores: [player.persistentScore, opponent.persistentScore] });
         
         updateProfile({
           gamesPlayed: (userProfile.gamesPlayed || 0) + 1,
