@@ -105,21 +105,26 @@ const Profile: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           )}
         </div>
 
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700 flex flex-col items-center">
-            <Trophy className="text-yellow-400 mb-2" size={24} />
-            <span className="text-2xl font-bold text-white">{userProfile.wins}</span>
-            <span className="text-xs text-slate-400 uppercase tracking-wider">Wins</span>
+        <div className="grid grid-cols-4 gap-2 mb-6">
+          <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700 flex flex-col items-center">
+            <Trophy className="text-yellow-400 mb-1" size={20} />
+            <span className="text-xl font-bold text-white">{userProfile.wins}</span>
+            <span className="text-[10px] text-slate-400 uppercase tracking-wider">Wins</span>
           </div>
-          <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700 flex flex-col items-center">
-            <Swords className="text-red-400 mb-2" size={24} />
-            <span className="text-2xl font-bold text-white">{userProfile.losses}</span>
-            <span className="text-xs text-slate-400 uppercase tracking-wider">Losses</span>
+          <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700 flex flex-col items-center">
+            <Swords className="text-red-400 mb-1" size={20} />
+            <span className="text-xl font-bold text-white">{userProfile.losses}</span>
+            <span className="text-[10px] text-slate-400 uppercase tracking-wider">Losses</span>
           </div>
-          <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700 flex flex-col items-center">
-            <History className="text-blue-400 mb-2" size={24} />
-            <span className="text-2xl font-bold text-white">{userProfile.gamesPlayed}</span>
-            <span className="text-xs text-slate-400 uppercase tracking-wider">Games</span>
+          <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700 flex flex-col items-center">
+            <History className="text-blue-400 mb-1" size={20} />
+            <span className="text-xl font-bold text-white">{userProfile.draws || 0}</span>
+            <span className="text-[10px] text-slate-400 uppercase tracking-wider">Draws</span>
+          </div>
+          <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700 flex flex-col items-center">
+            <History className="text-green-400 mb-1" size={20} />
+            <span className="text-xl font-bold text-white">{userProfile.gamesPlayed}</span>
+            <span className="text-[10px] text-slate-400 uppercase tracking-wider">Games</span>
           </div>
         </div>
 

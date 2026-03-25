@@ -69,6 +69,7 @@ const hasEligibleMoves = (player: Player, targetNumber: number): boolean => {
     if (card.type === 'gamble' && card.isGambleRevealed && card.gambleChoice === 'positive') {
        if (player.score + card.value > targetNumber) continue;
        if (!player.cleanSlate && player.row.length > 0 && player.row[player.row.length - 1].value === card.value) continue;
+       if (card.value > 3 && !player.highCardsUnlocked) continue;
        return true;
     }
     
@@ -297,8 +298,28 @@ export const handleGambleChoice = (gameState: GameState, cardId: string, choice:
     const newScore = newPlayer.score + revealedCard.value; 
     const newTargetNumber = newState.targetNumber - revealedCard.value;
     
+    // Gamble cards revealed as 1, 2, or 3 now count towards the cycle
+    let newUnlockedNumbers = { ...newPlayer.unlockedNumbers };
+    let newHighCardsUnlocked = newPlayer.highCardsUnlocked;
+
+    if (revealedCard.value >= 1 && revealedCard.value <= 3) {
+      newUnlockedNumbers[revealedCard.value as 1 | 2 | 3] = true;
+    }
+
+    if (newUnlockedNumbers[1] && newUnlockedNumbers[2] && newUnlockedNumbers[3]) {
+      newHighCardsUnlocked = true;
+    }
+
+    // If it's a high card (>= 4), it resets the cycle just like a normal card
+    if (revealedCard.value > 3) {
+      newUnlockedNumbers = { 1: false, 2: false, 3: false };
+      newHighCardsUnlocked = false;
+    }
+
     newPlayer.row = newRow;
     newPlayer.score = newScore;
+    newPlayer.unlockedNumbers = newUnlockedNumbers;
+    newPlayer.highCardsUnlocked = newHighCardsUnlocked;
     newPlayer.cleanSlate = false;
     newPlayers[activePlayerIndex] = newPlayer;
     newState.players = newPlayers;
@@ -380,6 +401,9 @@ export const playCard = (gameState: GameState, cardId: string, selectedValue?: n
     if (!player.cleanSlate && player.row.length > 0 && player.row[player.row.length - 1].value === card.value) {
       return gameState;
     }
+    if (card.value > 3 && !player.highCardsUnlocked) {
+      return gameState;
+    }
 
     const newHand = [...player.hand];
     newHand.splice(cardIndex, 1);
@@ -387,13 +411,31 @@ export const playCard = (gameState: GameState, cardId: string, selectedValue?: n
     const newRow = [...player.row, card];
     const newScore = player.score + card.value;
 
-    // IMPORTANT: It does NOT affect the 1-2-3 cycle
+    // Gamble cards revealed as 1, 2, or 3 now count towards the cycle
+    let newUnlockedNumbers = { ...player.unlockedNumbers };
+    let newHighCardsUnlocked = player.highCardsUnlocked;
+
+    if (card.value >= 1 && card.value <= 3) {
+      newUnlockedNumbers[card.value as 1 | 2 | 3] = true;
+    }
+
+    if (newUnlockedNumbers[1] && newUnlockedNumbers[2] && newUnlockedNumbers[3]) {
+      newHighCardsUnlocked = true;
+    }
+
+    // If it's a high card (>= 4), it resets the cycle just like a normal card
+    if (card.value > 3) {
+      newUnlockedNumbers = { 1: false, 2: false, 3: false };
+      newHighCardsUnlocked = false;
+    }
+
     const newPlayer = {
       ...player,
       hand: newHand,
       row: newRow,
       score: newScore,
-      // unlockedNumbers and highCardsUnlocked remain unchanged
+      unlockedNumbers: newUnlockedNumbers,
+      highCardsUnlocked: newHighCardsUnlocked,
       cleanSlate: false,
     };
 
@@ -722,6 +764,7 @@ export const findBestCardToPlay = (player: Player, targetNumber: number): Card |
     if (c.type === 'gamble' && c.isGambleRevealed && c.gambleChoice === 'positive') {
        if (score + c.value > targetNumber) return false;
        if (!player.cleanSlate && lastCardInRow && lastCardInRow.value === c.value) return false;
+       if (c.value > 3 && !highCardsUnlocked) return false;
        return true;
     }
     

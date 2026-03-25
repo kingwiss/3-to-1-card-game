@@ -115,12 +115,12 @@ const Game: React.FC = () => {
     }
   }, [userProfile]);
 
-  // Reset hasRecordedGame when a new game starts
+  // Reset hasRecordedGame when a new round starts
   useEffect(() => {
-    if (gameState.status === 'playing' && gameState.round === 1) {
+    if (gameState.status === 'playing') {
       setHasRecordedGame(false);
     }
-  }, [gameState.status, gameState.round]);
+  }, [gameState.status]);
 
   useEffect(() => {
     // Connect to the socket server
@@ -353,26 +353,42 @@ const Game: React.FC = () => {
       } else {
         playSound('lose');
       }
+
+      if (userProfile && !hasRecordedGame) {
+        const isWin = winnerId === player.id;
+        const isLoss = winnerId === opponent.id;
+        const isDraw = winnerId === null; // Should not happen in roundOver but for safety
+        
+        updateProfile({
+          gamesPlayed: (userProfile.gamesPlayed || 0) + 1,
+          wins: (userProfile.wins || 0) + (isWin ? 1 : 0),
+          losses: (userProfile.losses || 0) + (isLoss ? 1 : 0),
+          draws: (userProfile.draws || 0) + (isDraw ? 1 : 0)
+        });
+        setHasRecordedGame(true);
+      }
     } else if (status === 'gameOver') {
       if (player.persistentScore > opponent.persistentScore) {
         playSound('win');
-      } else {
+      } else if (player.persistentScore < opponent.persistentScore) {
         playSound('lose');
       }
 
       if (userProfile && !hasRecordedGame) {
         const isWin = player.persistentScore > opponent.persistentScore;
         const isLoss = player.persistentScore < opponent.persistentScore;
+        const isDraw = player.persistentScore === opponent.persistentScore;
         
         updateProfile({
           gamesPlayed: (userProfile.gamesPlayed || 0) + 1,
           wins: (userProfile.wins || 0) + (isWin ? 1 : 0),
-          losses: (userProfile.losses || 0) + (isLoss ? 1 : 0)
+          losses: (userProfile.losses || 0) + (isLoss ? 1 : 0),
+          draws: (userProfile.draws || 0) + (isDraw ? 1 : 0)
         });
         setHasRecordedGame(true);
       }
     }
-  }, [status, winnerId, player.id, player.persistentScore, opponent.persistentScore, userProfile, hasRecordedGame, updateProfile]);
+  }, [status, winnerId, player.id, player.persistentScore, opponent.id, opponent.persistentScore, userProfile, hasRecordedGame, updateProfile]);
 
   useEffect(() => {
     let timer: NodeJS.Timeout;

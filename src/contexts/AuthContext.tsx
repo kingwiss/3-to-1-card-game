@@ -9,6 +9,7 @@ interface UserProfile {
   photoURL: string | null;
   wins: number;
   losses: number;
+  draws: number;
   gamesPlayed: number;
   isPremium: boolean;
   specialGamesPlayedThisWeek?: number;
@@ -118,6 +119,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               photoURL: currentUser.photoURL,
               wins: 0,
               losses: 0,
+              draws: 0,
               gamesPlayed: 0,
               isPremium: false,
               specialGamesPlayedThisWeek: 0,
