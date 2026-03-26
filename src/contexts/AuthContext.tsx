@@ -9,8 +9,8 @@ interface UserProfile {
   photoURL: string | null;
   wins: number;
   losses: number;
-  draws: number;
   gamesPlayed: number;
+  tokens: number;
   isPremium: boolean;
   specialGamesPlayedThisWeek?: number;
   specialGameResetDate?: number;
@@ -90,8 +90,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           photoURL: data.photoURL || user.photoURL || '',
           wins: data.wins || 0,
           losses: data.losses || 0,
-          draws: data.draws || 0,
           gamesPlayed: data.gamesPlayed || 0,
+          tokens: data.tokens || 0,
           isPremium: data.isPremium || false,
           specialGamesPlayedThisWeek: data.specialGamesPlayedThisWeek || 0,
           specialGameResetDate: data.specialGameResetDate || Date.now(),
@@ -117,8 +117,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           photoURL: user.photoURL || '',
           wins: 0,
           losses: 0,
-          draws: 0,
           gamesPlayed: 0,
+          tokens: 0,
           isPremium: false,
           specialGamesPlayedThisWeek: 0,
           specialGameResetDate: Date.now(),

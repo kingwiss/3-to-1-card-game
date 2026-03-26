@@ -28,6 +28,8 @@ export interface Player {
     3: boolean;
   };
   highCardsUnlocked: boolean;
+  highCardsPlayedThisCycle: number;
+  cycleCompletedThisTurn: boolean;
   limitLifted: boolean;
   cleanSlate: boolean;
 }
@@ -54,4 +56,7 @@ export interface GameState {
   pendingTargetDecision: boolean;
   pendingGambleDecision: boolean;
   isStrategicMode: boolean;
+  gameId: string;
+  pendingReward?: { amount: number, reason: string };
+  chatMessages: { senderId: number, text: string, timestamp: number }[];
 }

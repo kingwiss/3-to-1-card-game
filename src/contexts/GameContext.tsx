@@ -307,6 +307,14 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             break;
           }
           case "endGame": newState = { ...newState, status: "gameOver" }; break;
+          case "chatMessage": {
+            newState.chatMessages = [...(newState.chatMessages || []), {
+              senderId: action.senderId,
+              text: action.text,
+              timestamp: Date.now()
+            }];
+            break;
+          }
         }
       } catch (e) {
         console.error("Action error", e);

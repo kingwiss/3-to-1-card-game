@@ -1,11 +1,14 @@
 let audioCtx: AudioContext | null = null;
 
-export const playSound = (type: 'draw' | 'play' | 'sabotage' | 'limitLift' | 'win' | 'lose' | 'opponent' | 'tick') => {
+export const resumeAudio = async () => {
+  if (audioCtx && audioCtx.state === 'suspended') {
+    await audioCtx.resume();
+  }
+};
+
+export const playSound = (type: 'draw' | 'play' | 'sabotage' | 'limitLift' | 'win' | 'lose' | 'opponent' | 'tick' | 'coinShuffle' | 'coinLand') => {
   if (!audioCtx) {
     audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-  }
-  if (audioCtx.state === 'suspended') {
-    audioCtx.resume();
   }
   
   const osc = audioCtx.createOscillator();
@@ -83,5 +86,74 @@ export const playSound = (type: 'draw' | 'play' | 'sabotage' | 'limitLift' | 'wi
     gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
     osc.start(now);
     osc.stop(now + 0.5);
+  } else if (type === 'coinShuffle') {
+    // Realistic coin shuffling/clinking sound
+    for (let i = 0; i < 15; i++) {
+        const osc = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        
+        // Highpass filter to remove low frequencies and make it sound more "metallic"
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = 'highpass';
+        filter.frequency.value = 4000;
+        
+        osc.connect(filter);
+        filter.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        
+        // Mix of sine and square for a metallic "clink"
+        osc.type = i % 2 === 0 ? 'sine' : 'square';
+        
+        // Random high frequencies typical of small metal objects
+        const freq = 3000 + Math.random() * 4000;
+        const timeOffset = now + i * 0.05 + Math.random() * 0.02;
+        
+        osc.frequency.setValueAtTime(freq, timeOffset);
+        osc.frequency.exponentialRampToValueAtTime(freq * 1.5, timeOffset + 0.03);
+        
+        gainNode.gain.setValueAtTime(0, timeOffset);
+        gainNode.gain.linearRampToValueAtTime(0.05 + Math.random() * 0.05, timeOffset + 0.01);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, timeOffset + 0.05);
+        
+        osc.start(timeOffset);
+        osc.stop(timeOffset + 0.06);
+    }
+  } else if (type === 'coinLand') {
+    // A bright, satisfying "ka-ching" or solid coin drop when hitting the profile
+    const frequencies = [1200, 1600, 2400];
+    frequencies.forEach((freq, i) => {
+        const osc = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        
+        osc.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        
+        osc.type = 'sine';
+        
+        // Slight delay between tones for a "sparkle" effect
+        const startTime = now + i * 0.03;
+        
+        osc.frequency.setValueAtTime(freq, startTime);
+        
+        gainNode.gain.setValueAtTime(0, startTime);
+        gainNode.gain.linearRampToValueAtTime(0.15, startTime + 0.02);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, startTime + 0.4);
+        
+        osc.start(startTime);
+        osc.stop(startTime + 0.5);
+    });
+    
+    // Add a quick "thud" for the physical impact
+    const thudOsc = audioCtx.createOscillator();
+    const thudGain = audioCtx.createGain();
+    thudOsc.connect(thudGain);
+    thudGain.connect(audioCtx.destination);
+    thudOsc.type = 'triangle';
+    thudOsc.frequency.setValueAtTime(150, now);
+    thudOsc.frequency.exponentialRampToValueAtTime(40, now + 0.1);
+    thudGain.gain.setValueAtTime(0.2, now);
+    thudGain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+    thudOsc.start(now);
+    thudOsc.stop(now + 0.1);
   }
 };

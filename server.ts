@@ -45,11 +45,11 @@ io.on('connection', (socket) => {
 
 // Initialize Stripe with the secret key
 let stripeClient: Stripe | null = null;
-function getStripe(): Stripe {
+function getStripe(): Stripe | null {
   if (!stripeClient) {
     const key = process.env.STRIPE_SECRET_KEY;
     if (!key) {
-      throw new Error('STRIPE_SECRET_KEY environment variable is required');
+      return null;
     }
     stripeClient = new Stripe(key);
   }
@@ -66,6 +66,9 @@ let cachedStripePriceId: string | null = null;
 app.post('/api/create-checkout-session', async (req, res) => {
   try {
     const stripe = getStripe();
+    if (!stripe) {
+      return res.status(500).json({ error: 'Stripe not configured. Please set STRIPE_SECRET_KEY.' });
+    }
     const { email, userId, priceId, returnUrl } = req.body;
 
     if (!email || !userId) {
@@ -138,6 +141,9 @@ app.post('/api/create-checkout-session', async (req, res) => {
 app.post('/api/create-portal-session', async (req, res) => {
   try {
     const stripe = getStripe();
+    if (!stripe) {
+      return res.status(500).json({ error: 'Stripe not configured. Please set STRIPE_SECRET_KEY.' });
+    }
     const { email, returnUrl } = req.body;
 
     if (!email) {
@@ -168,7 +174,6 @@ app.post('/api/create-portal-session', async (req, res) => {
 
 app.get('/api/subscription-status', async (req, res) => {
   try {
-    const stripe = getStripe();
     const { email } = req.query;
 
     if (!email || typeof email !== 'string') {
@@ -178,6 +183,11 @@ app.get('/api/subscription-status', async (req, res) => {
     // Grant premium access to specific admin email
     if (email === 'fredwisseh@gmail.com') {
       return res.json({ isPremium: true });
+    }
+
+    const stripe = getStripe();
+    if (!stripe) {
+      return res.json({ isPremium: false, error: 'Stripe not configured' });
     }
 
     const customers = await stripe.customers.list({ email: email, limit: 1 });
@@ -197,10 +207,6 @@ app.get('/api/subscription-status', async (req, res) => {
     res.json({ isPremium });
   } catch (error: any) {
     console.error('Error checking subscription status:', error);
-    // If Stripe is not configured, just return false gracefully
-    if (error.message.includes('STRIPE_SECRET_KEY')) {
-      return res.json({ isPremium: false, error: 'Stripe not configured' });
-    }
     res.status(500).json({ error: error.message });
   }
 });

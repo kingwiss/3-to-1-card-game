@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { motion } from 'framer-motion';
-import { User, Edit2, Save, X, Trophy, Swords, History, CreditCard } from 'lucide-react';
+import { User, Edit2, Save, X, Trophy, Swords, History, CreditCard, Coins } from 'lucide-react';
 
 const Profile: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const { user, userProfile, updateProfile } = useAuth();
@@ -105,7 +105,7 @@ const Profile: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           )}
         </div>
 
-        <div className="grid grid-cols-4 gap-2 mb-6">
+        <div className="grid grid-cols-2 gap-2 mb-6">
           <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700 flex flex-col items-center">
             <Trophy className="text-yellow-400 mb-1" size={20} />
             <span className="text-xl font-bold text-white">{userProfile.wins || 0}</span>
@@ -117,14 +117,15 @@ const Profile: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             <span className="text-[10px] text-slate-400 uppercase tracking-wider">Losses</span>
           </div>
           <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700 flex flex-col items-center">
-            <History className="text-blue-400 mb-1" size={20} />
-            <span className="text-xl font-bold text-white">{userProfile.draws || 0}</span>
-            <span className="text-[10px] text-slate-400 uppercase tracking-wider">Draws</span>
-          </div>
-          <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700 flex flex-col items-center">
             <History className="text-green-400 mb-1" size={20} />
             <span className="text-xl font-bold text-white">{userProfile.gamesPlayed || 0}</span>
             <span className="text-[10px] text-slate-400 uppercase tracking-wider">Games</span>
+          </div>
+          <div className="bg-slate-900/50 p-3 rounded-xl border border-amber-500/50 flex flex-col items-center relative overflow-hidden group">
+            <div className="absolute inset-0 bg-gradient-to-br from-amber-400/10 to-orange-600/10 group-hover:opacity-100 transition-opacity"></div>
+            <Coins className="text-amber-400 mb-1 drop-shadow-[0_0_8px_rgba(251,191,36,0.8)]" size={20} />
+            <span className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-amber-200 to-orange-400 drop-shadow-sm">{userProfile.tokens || 0}</span>
+            <span className="text-[10px] text-amber-500/80 uppercase tracking-wider font-bold">Tokens</span>
           </div>
         </div>
 

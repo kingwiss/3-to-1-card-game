@@ -3,6 +3,30 @@ import { DECK_COMPOSITION, INITIAL_HAND_SIZE, TARGET_LINEUP_SIZE } from '../cons
 
 const createId = () => Math.random().toString(36).substr(2, 9);
 
+const designateGambleCards = (deck: Card[]): Card[] => {
+  // Reset all gamble cards to number cards first
+  deck.forEach(c => {
+    if (c.type === 'gamble') {
+      c.type = 'number';
+      c.isGambleRevealed = undefined;
+      c.gambleChoice = undefined;
+    }
+  });
+
+  // Replace 5 or 6 random number cards with gamble cards
+  const numberCardIndices = deck.map((c, i) => c.type === 'number' ? i : -1).filter(i => i !== -1);
+  const gambleCount = Math.random() < 0.5 ? 5 : 6;
+  for (let i = 0; i < gambleCount; i++) {
+    if (numberCardIndices.length === 0) break;
+    const randomIndex = Math.floor(Math.random() * numberCardIndices.length);
+    const deckIndex = numberCardIndices[randomIndex];
+    deck[deckIndex].type = 'gamble';
+    deck[deckIndex].isGambleRevealed = false;
+    numberCardIndices.splice(randomIndex, 1);
+  }
+  return deck;
+};
+
 const createDeck = (gameMode: 'normal' | 'special' = 'normal'): Card[] => {
   const deck: Card[] = [];
   for (const value in DECK_COMPOSITION) {
@@ -36,19 +60,7 @@ const createDeck = (gameMode: 'normal' | 'special' = 'normal'): Card[] => {
     });
   }
 
-  // Replace 5 random number cards with gamble cards
-  const numberCardIndices = deck.map((c, i) => c.type === 'number' ? i : -1).filter(i => i !== -1);
-  const gambleCount = 5;
-  for (let i = 0; i < gambleCount; i++) {
-    if (numberCardIndices.length === 0) break;
-    const randomIndex = Math.floor(Math.random() * numberCardIndices.length);
-    const deckIndex = numberCardIndices[randomIndex];
-    deck[deckIndex].type = 'gamble';
-    deck[deckIndex].isGambleRevealed = false;
-    numberCardIndices.splice(randomIndex, 1);
-  }
-
-  return deck;
+  return designateGambleCards(deck);
 };
 
 const shuffleDeck = (deck: Card[]): Card[] => {
@@ -127,6 +139,7 @@ export const reshuffleDeck = (gameState: GameState): GameState => {
   });
 
   let newDeck = shuffleDeck(cardsToReshuffle);
+  newDeck = designateGambleCards(newDeck);
 
   const finalPlayers = newPlayers.map(p => {
     let dealt = 0;
@@ -155,31 +168,12 @@ export const endTurn = (gameState: GameState): GameState => {
   // Reset limitLifted for the player whose turn is ending
   const currentPlayer = { ...players[activePlayerIndex] };
   currentPlayer.limitLifted = false;
+  currentPlayer.cycleCompletedThisTurn = false;
+
   const newPlayers = [...players];
   newPlayers[activePlayerIndex] = currentPlayer;
 
   const nextPlayerIndex = (activePlayerIndex + 1) % players.length;
-  const nextPlayer = players[nextPlayerIndex];
-
-  // Check if the next player has any eligible moves
-  if (!hasEligibleMoves(nextPlayer, targetNumber)) {
-    // If next player has no moves, check if current player has any moves left (they just ended their turn, but maybe they could have played more?)
-    // Actually, if we are here, it means the current player already decided to end their turn or was forced to.
-    // So we check if the NEXT player is also stuck.
-    // If BOTH are stuck, it's a draw for the round.
-    
-    // Check if current player (who just ended) would have moves if it were their turn again
-    // (This is a bit simplified, but if both players have no moves, it's a draw)
-    if (!hasEligibleMoves(currentPlayer, targetNumber)) {
-      return {
-        ...gameState,
-        players: newPlayers,
-        status: 'roundOver',
-        winnerId: null, // Draw
-        logs: [...gameState.logs, "Both players are stuck! The round ends in a draw."]
-      };
-    }
-  }
 
   return {
     ...gameState,
@@ -188,6 +182,7 @@ export const endTurn = (gameState: GameState): GameState => {
     playsThisTurn: 0,
     hasDrawnCardThisTurn: false,
     pendingGambleDecision: false,
+    drawnCard: null,
   };
 };
 
@@ -247,14 +242,26 @@ export const addDrawnCardToTarget = (gameState: GameState): GameState => {
   if (drawnCard.value >= 4) {
     const opponentIndex = (activePlayerIndex + 1) % newState.players.length;
     const opponent = { ...newState.players[opponentIndex] };
+    
+    // Check if opponent is about to win (within 3 points of the target number)
+    const isOpponentAboutToWin = (targetNumber - opponent.score) <= 3 && opponent.score > 0;
+    
     opponent.limitLifted = true;
     const newPlayersWithLimitLift = [...newState.players];
     newPlayersWithLimitLift[opponentIndex] = opponent;
     newState.players = newPlayersWithLimitLift;
     newState.logs.push(`${players[activePlayerIndex].name} added a high card to the target, lifting the limit for ${opponent.name}!`);
+    
+    if (isOpponentAboutToWin && (players[activePlayerIndex].id === 1 || (players[activePlayerIndex].id === 2 && newState.mode === 'PvP'))) {
+      newState.pendingReward = { amount: 50, reason: 'prevent_opponent_win' };
+    }
   }
 
-  const player = newState.players[newState.activePlayerIndex];
+  const player = { ...newState.players[newState.activePlayerIndex] };
+  const newPlayersWithStuckReset = [...newState.players];
+  newPlayersWithStuckReset[newState.activePlayerIndex] = player;
+  newState.players = newPlayersWithStuckReset;
+
   if (!hasEligibleMoves(player, newState.targetNumber)) {
     newState = endTurn(newState);
   }
@@ -323,39 +330,56 @@ export const handleGambleChoice = (gameState: GameState, cardId: string, choice:
     // Gamble cards revealed as 1, 2, or 3 now count towards the cycle
     let newUnlockedNumbers = { ...newPlayer.unlockedNumbers };
     let newHighCardsUnlocked = newPlayer.highCardsUnlocked;
+    let newHighCardsPlayedThisCycle = newPlayer.highCardsPlayedThisCycle || 0;
+    let newCycleCompletedThisTurn = newPlayer.cycleCompletedThisTurn || false;
+    let cycleJustCompleted = false;
 
-    if (revealedCard.value >= 1 && revealedCard.value <= 3) {
-      newUnlockedNumbers[revealedCard.value as 1 | 2 | 3] = true;
-    }
-
-    if (newUnlockedNumbers[1] && newUnlockedNumbers[2] && newUnlockedNumbers[3]) {
-      newHighCardsUnlocked = true;
-    }
-
-    // If it's a high card (>= 4), it resets the cycle just like a normal card
-    if (revealedCard.value > 3) {
-      newUnlockedNumbers = { 1: false, 2: false, 3: false };
-      newHighCardsUnlocked = false;
+    if (revealedCard.value <= 3) {
+      if (newHighCardsUnlocked) {
+        newUnlockedNumbers = { 1: false, 2: false, 3: false };
+        newUnlockedNumbers[revealedCard.value as 1 | 2 | 3] = true;
+        newHighCardsUnlocked = false;
+        newHighCardsPlayedThisCycle = 0;
+      } else {
+        newUnlockedNumbers[revealedCard.value as 1 | 2 | 3] = true;
+        if (newUnlockedNumbers[1] && newUnlockedNumbers[2] && newUnlockedNumbers[3]) {
+          newHighCardsUnlocked = true;
+          newHighCardsPlayedThisCycle = 0;
+          newCycleCompletedThisTurn = true;
+          cycleJustCompleted = true;
+        }
+      }
+    } else {
+      newHighCardsPlayedThisCycle += 1;
+      if (newHighCardsPlayedThisCycle >= 2) {
+        newUnlockedNumbers = { 1: false, 2: false, 3: false };
+        newHighCardsUnlocked = false;
+        newHighCardsPlayedThisCycle = 0;
+      }
     }
 
     newPlayer.row = newRow;
     newPlayer.score = newScore;
     newPlayer.unlockedNumbers = newUnlockedNumbers;
     newPlayer.highCardsUnlocked = newHighCardsUnlocked;
+    newPlayer.highCardsPlayedThisCycle = newHighCardsPlayedThisCycle;
+    newPlayer.cycleCompletedThisTurn = newCycleCompletedThisTurn;
     newPlayer.cleanSlate = false;
     newPlayers[activePlayerIndex] = newPlayer;
     newState.players = newPlayers;
     
-    // Limit Lift Logic
-    if (revealedCard.value >= 4) {
-      const opponentIndex = (activePlayerIndex + 1) % newState.players.length;
-      const opponent = { ...newState.players[opponentIndex] };
-      opponent.limitLifted = true;
-      const newPlayersWithLimitLift = [...newState.players];
-      newPlayersWithLimitLift[opponentIndex] = opponent;
-      newState.players = newPlayersWithLimitLift;
-      newState.logs.push(`${newPlayer.name} lifted the limit for ${opponent.name} with a high Gamble Card!`);
+    if (cycleJustCompleted) {
+      newState.pendingReward = { amount: 50, reason: 'cycle_complete' };
     }
+    
+    // Limit Lift Logic: ANY negative gamble card lifts the opponent's limit
+    const opponentIndex = (activePlayerIndex + 1) % newState.players.length;
+    const opponent = { ...newState.players[opponentIndex] };
+    opponent.limitLifted = true;
+    const newPlayersWithLimitLift = [...newState.players];
+    newPlayersWithLimitLift[opponentIndex] = opponent;
+    newState.players = newPlayersWithLimitLift;
+    newState.logs.push(`${newPlayer.name} lifted the limit for ${opponent.name} with a negative Gamble Card!`);
 
     newState.targetNumber = newTargetNumber;
     newState.logs = [...newState.logs, `The target number is reduced by ${revealedCard.value} to ${newTargetNumber}! ${newPlayer.name}'s roll is now ${newScore}.`];
@@ -391,7 +415,12 @@ export const handleGambleChoice = (gameState: GameState, cardId: string, choice:
 
     // If game continues, it counts as a play
     newState.playsThisTurn += 1;
-    const maxPlays = newState.players[activePlayerIndex].limitLifted ? Infinity : 2;
+    // Reward for negative gamble success
+    if (newState.players[activePlayerIndex].id === 1 || (newState.players[activePlayerIndex].id === 2 && newState.mode === 'PvP')) {
+      newState.pendingReward = { amount: 50, reason: 'negative_gamble_success' };
+    }
+    
+    const maxPlays = newState.players[activePlayerIndex].limitLifted ? Infinity : (newState.players[activePlayerIndex].cycleCompletedThisTurn ? 3 : 2);
     if (newState.playsThisTurn >= maxPlays || !hasEligibleMoves(newState.players[activePlayerIndex], newTargetNumber)) {
       newState = endTurn(newState);
     }
@@ -436,19 +465,32 @@ export const playCard = (gameState: GameState, cardId: string, selectedValue?: n
     // Gamble cards revealed as 1, 2, or 3 now count towards the cycle
     let newUnlockedNumbers = { ...player.unlockedNumbers };
     let newHighCardsUnlocked = player.highCardsUnlocked;
+    let newHighCardsPlayedThisCycle = player.highCardsPlayedThisCycle || 0;
+    let newCycleCompletedThisTurn = player.cycleCompletedThisTurn || false;
+    let cycleJustCompleted = false;
 
-    if (card.value >= 1 && card.value <= 3) {
-      newUnlockedNumbers[card.value as 1 | 2 | 3] = true;
-    }
-
-    if (newUnlockedNumbers[1] && newUnlockedNumbers[2] && newUnlockedNumbers[3]) {
-      newHighCardsUnlocked = true;
-    }
-
-    // If it's a high card (>= 4), it resets the cycle just like a normal card
-    if (card.value > 3) {
-      newUnlockedNumbers = { 1: false, 2: false, 3: false };
-      newHighCardsUnlocked = false;
+    if (card.value <= 3) {
+      if (newHighCardsUnlocked) {
+        newUnlockedNumbers = { 1: false, 2: false, 3: false };
+        newUnlockedNumbers[card.value as 1 | 2 | 3] = true;
+        newHighCardsUnlocked = false;
+        newHighCardsPlayedThisCycle = 0;
+      } else {
+        newUnlockedNumbers[card.value as 1 | 2 | 3] = true;
+        if (newUnlockedNumbers[1] && newUnlockedNumbers[2] && newUnlockedNumbers[3]) {
+          newHighCardsUnlocked = true;
+          newHighCardsPlayedThisCycle = 0;
+          newCycleCompletedThisTurn = true;
+          cycleJustCompleted = true;
+        }
+      }
+    } else {
+      newHighCardsPlayedThisCycle += 1;
+      if (newHighCardsPlayedThisCycle >= 2) {
+        newUnlockedNumbers = { 1: false, 2: false, 3: false };
+        newHighCardsUnlocked = false;
+        newHighCardsPlayedThisCycle = 0;
+      }
     }
 
     const newPlayer = {
@@ -458,6 +500,8 @@ export const playCard = (gameState: GameState, cardId: string, selectedValue?: n
       score: newScore,
       unlockedNumbers: newUnlockedNumbers,
       highCardsUnlocked: newHighCardsUnlocked,
+      highCardsPlayedThisCycle: newHighCardsPlayedThisCycle,
+      cycleCompletedThisTurn: newCycleCompletedThisTurn,
       cleanSlate: false,
     };
 
@@ -466,25 +510,21 @@ export const playCard = (gameState: GameState, cardId: string, selectedValue?: n
 
     let newState: GameState = { ...gameState, players: newPlayers, playsThisTurn: gameState.playsThisTurn + 1 };
 
-    // Limit Lift Logic
-    if (card.value >= 4) {
-      const opponentIndex = (activePlayerIndex + 1) % newState.players.length;
-      const opponent = { ...newState.players[opponentIndex] };
-      opponent.limitLifted = true;
-      const newPlayersWithLimitLift = [...newState.players];
-      newPlayersWithLimitLift[opponentIndex] = opponent;
-      newState.players = newPlayersWithLimitLift;
-      newState.logs.push(`${newPlayer.name} lifted the limit for ${opponent.name} with a Gamble Card!`);
+    if (cycleJustCompleted) {
+      newState.pendingReward = { amount: 50, reason: 'cycle_complete' };
     }
 
     if (newScore === targetNumber) {
       newPlayer.persistentScore += 1;
       newState.status = 'roundOver';
       newState.winnerId = newPlayer.id;
+      if (newPlayer.id === 1 || (newPlayer.id === 2 && newState.mode === 'PvP')) {
+        newState.pendingReward = { amount: 100, reason: 'win_game' };
+      }
       return newState;
     }
 
-    const maxPlays = newPlayer.limitLifted ? Infinity : 2;
+    const maxPlays = newPlayer.limitLifted ? Infinity : (newPlayer.cycleCompletedThisTurn ? 3 : 2);
     if (newState.playsThisTurn >= maxPlays || !hasEligibleMoves(newPlayer, targetNumber)) {
       newState = endTurn(newState);
     }
@@ -516,22 +556,32 @@ export const playCard = (gameState: GameState, cardId: string, selectedValue?: n
     // Update cycle tracker if applicable (1, 2, 3)
     let newUnlockedNumbers = { ...player.unlockedNumbers };
     let newHighCardsUnlocked = player.highCardsUnlocked;
+    let newHighCardsPlayedThisCycle = player.highCardsPlayedThisCycle || 0;
+    let newCycleCompletedThisTurn = player.cycleCompletedThisTurn || false;
+    let cycleJustCompleted = false;
 
-    if (selectedValue >= 1 && selectedValue <= 3) {
-      newUnlockedNumbers[selectedValue as 1 | 2 | 3] = true;
-    }
-    if (newUnlockedNumbers[1] && newUnlockedNumbers[2] && newUnlockedNumbers[3]) {
-      newHighCardsUnlocked = true;
-    }
-    
-    // Golden card doesn't reset cycle if > 3 because it bypasses rules? 
-    // "They can add it to their row even if they have not completed the one, two, three cycle."
-    // It doesn't explicitly say it *breaks* the cycle if they pick 5. 
-    // But usually playing a high card resets the cycle. 
-    // Let's assume if they pick > 3, it behaves like a high card regarding cycle reset.
-    if (selectedValue > 3) {
-       newUnlockedNumbers = { 1: false, 2: false, 3: false };
-       newHighCardsUnlocked = false;
+    if (selectedValue <= 3) {
+      if (newHighCardsUnlocked) {
+        newUnlockedNumbers = { 1: false, 2: false, 3: false };
+        newUnlockedNumbers[selectedValue as 1 | 2 | 3] = true;
+        newHighCardsUnlocked = false;
+        newHighCardsPlayedThisCycle = 0;
+      } else {
+        newUnlockedNumbers[selectedValue as 1 | 2 | 3] = true;
+        if (newUnlockedNumbers[1] && newUnlockedNumbers[2] && newUnlockedNumbers[3]) {
+          newHighCardsUnlocked = true;
+          newHighCardsPlayedThisCycle = 0;
+          newCycleCompletedThisTurn = true;
+          cycleJustCompleted = true;
+        }
+      }
+    } else {
+      newHighCardsPlayedThisCycle += 1;
+      if (newHighCardsPlayedThisCycle >= 2) {
+        newUnlockedNumbers = { 1: false, 2: false, 3: false };
+        newHighCardsUnlocked = false;
+        newHighCardsPlayedThisCycle = 0;
+      }
     }
 
     const newPlayer = {
@@ -541,6 +591,8 @@ export const playCard = (gameState: GameState, cardId: string, selectedValue?: n
       score: newScore,
       unlockedNumbers: newUnlockedNumbers,
       highCardsUnlocked: newHighCardsUnlocked,
+      highCardsPlayedThisCycle: newHighCardsPlayedThisCycle,
+      cycleCompletedThisTurn: newCycleCompletedThisTurn,
       cleanSlate: false,
     };
     
@@ -549,17 +601,10 @@ export const playCard = (gameState: GameState, cardId: string, selectedValue?: n
     
     let newState: GameState = { ...gameState, players: newPlayers, playsThisTurn: gameState.playsThisTurn + 1 };
     
-    // Limit Lift Logic for Golden Card?
-    if (selectedValue >= 4) {
-       const opponentIndex = (activePlayerIndex + 1) % newState.players.length;
-       const opponent = { ...newState.players[opponentIndex] };
-       opponent.limitLifted = true;
-       const newPlayersWithLimitLift = [...newState.players];
-       newPlayersWithLimitLift[opponentIndex] = opponent;
-       newState.players = newPlayersWithLimitLift;
-       newState.logs.push(`${newPlayer.name} lifted the limit for ${opponent.name} with a Golden Card!`);
+    if (cycleJustCompleted) {
+      newState.pendingReward = { amount: 50, reason: 'cycle_complete' };
     }
-
+    
     if (newScore === targetNumber) {
       newPlayer.persistentScore += 1;
       newState.status = 'roundOver';
@@ -567,7 +612,7 @@ export const playCard = (gameState: GameState, cardId: string, selectedValue?: n
       return newState;
     }
 
-    const maxPlays = newPlayer.limitLifted ? Infinity : 2;
+    const maxPlays = newPlayer.limitLifted ? Infinity : (newPlayer.cycleCompletedThisTurn ? 3 : 2);
     if (newState.playsThisTurn >= maxPlays || !hasEligibleMoves(newPlayer, targetNumber)) {
       newState = endTurn(newState);
     }
@@ -593,12 +638,32 @@ export const playCard = (gameState: GameState, cardId: string, selectedValue?: n
     
     let newUnlockedNumbers = { ...player.unlockedNumbers };
     let newHighCardsUnlocked = player.highCardsUnlocked;
+    let newHighCardsPlayedThisCycle = player.highCardsPlayedThisCycle || 0;
+    let newCycleCompletedThisTurn = player.cycleCompletedThisTurn || false;
+    let cycleJustCompleted = false;
 
-    if (value >= 1 && value <= 3) {
-      newUnlockedNumbers[value as 1 | 2 | 3] = true;
-    }
-    if (newUnlockedNumbers[1] && newUnlockedNumbers[2] && newUnlockedNumbers[3]) {
-      newHighCardsUnlocked = true;
+    if (value <= 3) {
+      if (newHighCardsUnlocked) {
+        newUnlockedNumbers = { 1: false, 2: false, 3: false };
+        newUnlockedNumbers[value as 1 | 2 | 3] = true;
+        newHighCardsUnlocked = false;
+        newHighCardsPlayedThisCycle = 0;
+      } else {
+        newUnlockedNumbers[value as 1 | 2 | 3] = true;
+        if (newUnlockedNumbers[1] && newUnlockedNumbers[2] && newUnlockedNumbers[3]) {
+          newHighCardsUnlocked = true;
+          newHighCardsPlayedThisCycle = 0;
+          newCycleCompletedThisTurn = true;
+          cycleJustCompleted = true;
+        }
+      }
+    } else {
+      newHighCardsPlayedThisCycle += 1;
+      if (newHighCardsPlayedThisCycle >= 2) {
+        newUnlockedNumbers = { 1: false, 2: false, 3: false };
+        newHighCardsUnlocked = false;
+        newHighCardsPlayedThisCycle = 0;
+      }
     }
 
     const newPlayer = {
@@ -608,6 +673,8 @@ export const playCard = (gameState: GameState, cardId: string, selectedValue?: n
       score: newScore,
       unlockedNumbers: newUnlockedNumbers,
       highCardsUnlocked: newHighCardsUnlocked,
+      highCardsPlayedThisCycle: newHighCardsPlayedThisCycle,
+      cycleCompletedThisTurn: newCycleCompletedThisTurn,
       cleanSlate: false,
     };
     
@@ -616,14 +683,21 @@ export const playCard = (gameState: GameState, cardId: string, selectedValue?: n
     
     let newState: GameState = { ...gameState, players: newPlayers, playsThisTurn: gameState.playsThisTurn + 1 };
     
+    if (cycleJustCompleted) {
+      newState.pendingReward = { amount: 50, reason: 'cycle_complete' };
+    }
+    
     if (newScore === targetNumber) {
       newPlayer.persistentScore += 1;
       newState.status = 'roundOver';
       newState.winnerId = newPlayer.id;
+      if (newPlayer.id === 1 || (newPlayer.id === 2 && newState.mode === 'PvP')) {
+        newState.pendingReward = { amount: 100, reason: 'win_game' };
+      }
       return newState;
     }
 
-    const maxPlays = newPlayer.limitLifted ? Infinity : 2;
+    const maxPlays = newPlayer.limitLifted ? Infinity : (newPlayer.cycleCompletedThisTurn ? 3 : 2);
     if (newState.playsThisTurn >= maxPlays || !hasEligibleMoves(newPlayer, targetNumber)) {
       newState = endTurn(newState);
     }
@@ -653,17 +727,36 @@ export const playCard = (gameState: GameState, cardId: string, selectedValue?: n
     
     let newUnlockedNumbers = { ...player.unlockedNumbers };
     let newHighCardsUnlocked = player.highCardsUnlocked;
+    let newHighCardsPlayedThisCycle = player.highCardsPlayedThisCycle || 0;
+    let newCycleCompletedThisTurn = player.cycleCompletedThisTurn || false;
+    let cycleJustCompleted = false;
 
     // Process each number in sequence for unlocking
     sequence.forEach(val => {
-      if (val >= 1 && val <= 3) {
-        newUnlockedNumbers[val as 1 | 2 | 3] = true;
+      if (val <= 3) {
+        if (newHighCardsUnlocked) {
+          newUnlockedNumbers = { 1: false, 2: false, 3: false };
+          newUnlockedNumbers[val as 1 | 2 | 3] = true;
+          newHighCardsUnlocked = false;
+          newHighCardsPlayedThisCycle = 0;
+        } else {
+          newUnlockedNumbers[val as 1 | 2 | 3] = true;
+          if (newUnlockedNumbers[1] && newUnlockedNumbers[2] && newUnlockedNumbers[3]) {
+            newHighCardsUnlocked = true;
+            newHighCardsPlayedThisCycle = 0;
+            newCycleCompletedThisTurn = true;
+            cycleJustCompleted = true;
+          }
+        }
+      } else {
+        newHighCardsPlayedThisCycle += 1;
+        if (newHighCardsPlayedThisCycle >= 2) {
+          newUnlockedNumbers = { 1: false, 2: false, 3: false };
+          newHighCardsUnlocked = false;
+          newHighCardsPlayedThisCycle = 0;
+        }
       }
     });
-    
-    if (newUnlockedNumbers[1] && newUnlockedNumbers[2] && newUnlockedNumbers[3]) {
-      newHighCardsUnlocked = true;
-    }
 
     const newPlayer = {
       ...player,
@@ -672,6 +765,8 @@ export const playCard = (gameState: GameState, cardId: string, selectedValue?: n
       score: newScore,
       unlockedNumbers: newUnlockedNumbers,
       highCardsUnlocked: newHighCardsUnlocked,
+      highCardsPlayedThisCycle: newHighCardsPlayedThisCycle,
+      cycleCompletedThisTurn: newCycleCompletedThisTurn,
       cleanSlate: false,
     };
     
@@ -680,14 +775,21 @@ export const playCard = (gameState: GameState, cardId: string, selectedValue?: n
     
     let newState: GameState = { ...gameState, players: newPlayers, playsThisTurn: gameState.playsThisTurn + 1 };
     
+    if (cycleJustCompleted) {
+      newState.pendingReward = { amount: 50, reason: 'cycle_complete' };
+    }
+    
     if (newScore === targetNumber) {
       newPlayer.persistentScore += 1;
       newState.status = 'roundOver';
       newState.winnerId = newPlayer.id;
+      if (newPlayer.id === 1 || (newPlayer.id === 2 && newState.mode === 'PvP')) {
+        newState.pendingReward = { amount: 100, reason: 'win_game' };
+      }
       return newState;
     }
 
-    const maxPlays = newPlayer.limitLifted ? Infinity : 2;
+    const maxPlays = newPlayer.limitLifted ? Infinity : (newPlayer.cycleCompletedThisTurn ? 3 : 2);
     if (newState.playsThisTurn >= maxPlays || !hasEligibleMoves(newPlayer, targetNumber)) {
       newState = endTurn(newState);
     }
@@ -715,18 +817,32 @@ export const playCard = (gameState: GameState, cardId: string, selectedValue?: n
 
   let newUnlockedNumbers = { ...player.unlockedNumbers };
   let newHighCardsUnlocked = player.highCardsUnlocked;
+  let newHighCardsPlayedThisCycle = player.highCardsPlayedThisCycle || 0;
+  let newCycleCompletedThisTurn = player.cycleCompletedThisTurn || false;
+  let cycleJustCompleted = false;
 
-  if (card.value >= 1 && card.value <= 3) {
-    newUnlockedNumbers[card.value as 1 | 2 | 3] = true;
-  }
-
-  if (newUnlockedNumbers[1] && newUnlockedNumbers[2] && newUnlockedNumbers[3]) {
-    newHighCardsUnlocked = true;
-  }
-
-  if (card.value > 3) {
-    newUnlockedNumbers = { 1: false, 2: false, 3: false };
-    newHighCardsUnlocked = false;
+  if (card.value <= 3) {
+    if (newHighCardsUnlocked) {
+      newUnlockedNumbers = { 1: false, 2: false, 3: false };
+      newUnlockedNumbers[card.value as 1 | 2 | 3] = true;
+      newHighCardsUnlocked = false;
+      newHighCardsPlayedThisCycle = 0;
+    } else {
+      newUnlockedNumbers[card.value as 1 | 2 | 3] = true;
+      if (newUnlockedNumbers[1] && newUnlockedNumbers[2] && newUnlockedNumbers[3]) {
+        newHighCardsUnlocked = true;
+        newHighCardsPlayedThisCycle = 0;
+        newCycleCompletedThisTurn = true;
+        cycleJustCompleted = true;
+      }
+    }
+  } else {
+    newHighCardsPlayedThisCycle += 1;
+    if (newHighCardsPlayedThisCycle >= 2) {
+      newUnlockedNumbers = { 1: false, 2: false, 3: false };
+      newHighCardsUnlocked = false;
+      newHighCardsPlayedThisCycle = 0;
+    }
   }
 
   const newPlayer = {
@@ -736,6 +852,8 @@ export const playCard = (gameState: GameState, cardId: string, selectedValue?: n
     score: newScore,
     unlockedNumbers: newUnlockedNumbers,
     highCardsUnlocked: newHighCardsUnlocked,
+    highCardsPlayedThisCycle: newHighCardsPlayedThisCycle,
+    cycleCompletedThisTurn: newCycleCompletedThisTurn,
     cleanSlate: false,
   };
 
@@ -744,28 +862,21 @@ export const playCard = (gameState: GameState, cardId: string, selectedValue?: n
 
   let newState: GameState = { ...gameState, players: newPlayers, playsThisTurn: gameState.playsThisTurn + 1 };
 
-  // Limit Lift Logic
-  if (card.value >= 4) {
-    const opponentIndex = (activePlayerIndex + 1) % newState.players.length;
-    const opponent = { ...newState.players[opponentIndex] };
-
-    opponent.limitLifted = true;
-
-    const newPlayersWithLimitLift = [...newState.players];
-    newPlayersWithLimitLift[opponentIndex] = opponent;
-
-    newState.players = newPlayersWithLimitLift;
-    newState.logs.push(`${newPlayer.name} lifted the limit for ${opponent.name}!`);
+  if (cycleJustCompleted) {
+    newState.pendingReward = { amount: 50, reason: 'cycle_complete' };
   }
 
   if (newScore === targetNumber) {
     newPlayer.persistentScore += 1;
     newState.status = 'roundOver';
     newState.winnerId = newPlayer.id;
+    if (newPlayer.id === 1 || (newPlayer.id === 2 && newState.mode === 'PvP')) {
+      newState.pendingReward = { amount: 100, reason: 'win_game' };
+    }
     return newState;
   }
 
-  const maxPlays = newPlayer.limitLifted ? Infinity : 2;
+  const maxPlays = newPlayer.limitLifted ? Infinity : (newPlayer.cycleCompletedThisTurn ? 3 : 2);
   if (newState.playsThisTurn >= maxPlays || !hasEligibleMoves(newPlayer, targetNumber)) {
     newState = endTurn(newState);
   }
@@ -889,6 +1000,8 @@ export const startNextRound = (gameState: GameState): GameState => {
       unlockedNumbers: { 1: false, 2: false, 3: false },
       cycleTracker: { 1: false, 2: false, 3: false },
       highCardsUnlocked: false,
+      highCardsPlayedThisCycle: 0,
+      cycleCompletedThisTurn: false,
       limitLifted: false,
       cleanSlate: false,
     };
@@ -941,6 +1054,8 @@ export const initGame = (isStrategicMode: boolean = false, gameMode: 'normal' | 
       unlockedNumbers: { 1: false, 2: false, 3: false },
       cycleTracker: { 1: false, 2: false, 3: false },
       highCardsUnlocked: false,
+      highCardsPlayedThisCycle: 0,
+      cycleCompletedThisTurn: false,
       limitLifted: false,
       cleanSlate: false,
     },
@@ -954,6 +1069,8 @@ export const initGame = (isStrategicMode: boolean = false, gameMode: 'normal' | 
       unlockedNumbers: { 1: false, 2: false, 3: false },
       cycleTracker: { 1: false, 2: false, 3: false },
       highCardsUnlocked: false,
+      highCardsPlayedThisCycle: 0,
+      cycleCompletedThisTurn: false,
       limitLifted: false,
       cleanSlate: false,
     },
@@ -995,5 +1112,7 @@ export const initGame = (isStrategicMode: boolean = false, gameMode: 'normal' | 
     pendingGambleDecision: false,
     isStrategicMode,
     gameMode,
+    gameId: Math.random().toString(36).substring(2, 15),
+    chatMessages: [],
   };
 };

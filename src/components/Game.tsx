@@ -1,16 +1,18 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useGame } from '../hooks/useGame';
 import { useAuth } from '../contexts/AuthContext';
 import { drawCard, playCard, initGame, addDrawnCardToHand, addDrawnCardToTarget, startNextRound, endTurn, findBestCardToPlay, getBestGoldenCardValue, handleGambleChoice } from '../services/gameService';
-import { auth } from '../services/firebase';
+import { auth, db } from '../services/firebase';
+import { doc, setDoc, increment } from 'firebase/firestore';
 import Card from './Card';
 import Profile from './Profile';
 import Login from './Login';
 import PremiumModal from './PremiumModal';
 import SpecialGameModal from './SpecialGameModal';
+import TokenAnimation from './TokenAnimation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { playSound } from '../utils/sound';
-import { ChevronUp, ChevronDown, Users, User, BookOpen, Star, Palette, X, Sparkles, LogIn, LogOut, Gamepad2, Crown } from 'lucide-react';
+import { resumeAudio } from '../utils/sound';
+import { ChevronUp, ChevronDown, Users, User, BookOpen, Star, Palette, X, Sparkles, LogIn, LogOut, Gamepad2, Crown, Coins, RefreshCw, MessageCircle } from 'lucide-react';
 import { io } from 'socket.io-client';
 
 const ColorButton = ({ color, index, angle, themeColor, setThemeColor, isPremium }: any) => {
@@ -27,7 +29,7 @@ const ColorButton = ({ color, index, angle, themeColor, setThemeColor, isPremium
       whileHover={{ scale: 1.2, zIndex: 50 }}
       whileTap={{ scale: 0.9 }}
       onClick={() => {
-        if (isPremium) playSound('tick');
+        if (isPremium) {}
         setThemeColor(color);
       }}
       className={`absolute w-10 h-10 -ml-5 -mt-5 rounded-full border-2 shadow-lg flex items-center justify-center ${themeColor === color ? 'border-white z-10' : 'border-transparent'}`}
@@ -54,6 +56,14 @@ const ColorButton = ({ color, index, angle, themeColor, setThemeColor, isPremium
 };
 
 const Game: React.FC = () => {
+  useEffect(() => {
+    const handleInteraction = () => {
+      resumeAudio();
+      document.removeEventListener('click', handleInteraction);
+    };
+    document.addEventListener('click', handleInteraction);
+    return () => document.removeEventListener('click', handleInteraction);
+  }, []);
   const { gameState, setGameState, sendAction, isPvP, setIsPvP, isWaiting, matchmakingStatus, playerIndex, startMatchmaking, cancelMatchmaking, disconnectPvP } = useGame();
   const { user, userProfile } = useAuth();
   const [isHandExpanded, setIsHandExpanded] = useState(false);
@@ -79,6 +89,8 @@ const Game: React.FC = () => {
   const [themeColor, setThemeColor] = useState(userProfile?.isPremium ? 'cyan' : 'teal-gray');
   const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
   const [isLeftMenuOpen, setIsLeftMenuOpen] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatMessage, setChatMessage] = useState('');
   const [isGameModeModalOpen, setIsGameModeModalOpen] = useState(false);
   const [isGoldenCardModalOpen, setIsGoldenCardModalOpen] = useState(false);
   const [selectedGoldenCardId, setSelectedGoldenCardId] = useState<string | null>(null);
@@ -87,11 +99,34 @@ const Game: React.FC = () => {
   const [hasRecordedGame, setHasRecordedGame] = useState(false);
   const [showSpecialGameModal, setShowSpecialGameModal] = useState(false);
   const [localSpecialGamesPlayed, setLocalSpecialGamesPlayed] = useState(0);
+  const [tokenAnimations, setTokenAnimations] = useState<{ id: string, amount: number, x: number, y: number, reason: string }[]>([]);
+  const [localTokens, setLocalTokens] = useState(0);
   const { updateProfile } = useAuth();
+
+  const handleTokenReward = (amount: number, reason: string, x?: number, y?: number) => {
+    const startX = x || window.innerWidth / 2;
+    const startY = y || window.innerHeight / 2;
+    
+    setTokenAnimations(prev => [...prev, { id: Date.now().toString() + Math.random(), amount, x: startX, y: startY, reason }]);
+    
+    if (userProfile) {
+      const docRef = doc(db, 'users', userProfile.uid);
+      setDoc(docRef, { tokens: increment(amount) }, { merge: true }).catch(console.error);
+    } else {
+      const newTokens = localTokens + amount;
+      setLocalTokens(newTokens);
+      localStorage.setItem('guestTokens', newTokens.toString());
+    }
+  };
 
   // Handle local tracking for unauthenticated users
   useEffect(() => {
     if (!userProfile) {
+      const storedTokens = localStorage.getItem('guestTokens');
+      if (storedTokens) {
+        setLocalTokens(parseInt(storedTokens, 10) || 0);
+      }
+
       const storedData = localStorage.getItem('specialGamesTracking');
       const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
       
@@ -188,14 +223,22 @@ const Game: React.FC = () => {
     }
   }, [userProfile, playerIndex, gameState.players, isPremium, setGameState, isPvP, sendAction]);
 
-  const { players, targetNumber, targetLineup, status, winnerId, activePlayerIndex, deck, hasDrawnCardThisTurn, drawnCard, round, pendingTargetDecision, pendingGambleDecision, gameMode } = gameState;
+  const { players, targetNumber, targetLineup, status, winnerId, activePlayerIndex, deck, hasDrawnCardThisTurn, drawnCard, round, pendingTargetDecision, pendingGambleDecision, gameMode, gameId } = gameState;
   
   const player = players[playerIndex];
   const opponent = players[playerIndex === 0 ? 1 : 0];
 
+  const lastRewardedGameId = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (gameId && lastRewardedGameId.current !== gameId) {
+      handleTokenReward(10, 'game_start');
+      lastRewardedGameId.current = gameId;
+    }
+  }, [gameId, handleTokenReward]);
+
   const handleDrawCard = () => {
     if (status === 'playing' && activePlayerIndex === playerIndex && !hasDrawnCardThisTurn) {
-      playSound('draw');
       if (isPvP) {
         sendAction({ type: 'drawCard' });
       } else {
@@ -207,7 +250,12 @@ const Game: React.FC = () => {
 
   const onGambleChoice = (cardId: string, choice: 'positive' | 'negative') => {
     if (status === 'playing' && activePlayerIndex === playerIndex) {
-      playSound('play');
+      
+      if (choice === 'negative') {
+        const card = player.hand.find(c => c.id === cardId);
+        // Reward is handled in gameService.ts via pendingReward
+      }
+
       if (isPvP) {
         sendAction({ type: 'gambleChoice', cardId, choice });
       } else {
@@ -219,7 +267,13 @@ const Game: React.FC = () => {
 
   const handlePlayCard = (cardId: string, selectedValue?: number) => {
     if (status === 'playing' && activePlayerIndex === playerIndex && hasDrawnCardThisTurn && !drawnCard) {
-      playSound('play');
+      
+      const card = player.hand.find(c => c.id === cardId);
+      if (card) {
+        const value = card.type === 'golden' ? (selectedValue || 0) : card.value;
+        // Reward is handled in gameService.ts via pendingReward
+      }
+
       if (isPvP) {
         sendAction({ type: 'playCard', cardId, selectedValue });
       } else {
@@ -271,18 +325,19 @@ const Game: React.FC = () => {
 
       if (!hasDrawnCardThisTurn) {
         timer = setTimeout(() => {
-          playSound('draw');
           setGameState(prevState => drawCard(prevState));
         }, 1000);
       } else if (drawnCard) {
         timer = setTimeout(() => {
-          playSound('draw');
           setGameState(prevState => {
             if (prevState.pendingGambleDecision) {
-              const choice = Math.random() < 0.1 ? 'negative' : 'positive';
+              const choice = Math.random() < 0.3 ? 'negative' : 'positive';
               return handleGambleChoice(prevState, prevState.drawnCard!.id, choice);
             } else if (prevState.pendingTargetDecision) {
-              // Simple AI: always add to hand for now
+              // AI sometimes adds to target number to lift opponent's limit or change target
+              if (Math.random() < 0.3) {
+                return addDrawnCardToTarget(prevState);
+              }
               return addDrawnCardToHand(prevState);
             } else {
               return addDrawnCardToHand(prevState);
@@ -302,7 +357,6 @@ const Game: React.FC = () => {
 
           const bestCard = findBestCardToPlay(aiPlayer, targetNumber);
           if (bestCard) {
-            playSound('play');
             let selectedValue: number | undefined;
             if (bestCard.type === 'golden') {
               selectedValue = getBestGoldenCardValue(aiPlayer, targetNumber);
@@ -327,7 +381,6 @@ const Game: React.FC = () => {
   useEffect(() => {
     if (drawnCard && !pendingTargetDecision && !pendingGambleDecision && activePlayerIndex === playerIndex) {
       const timer = setTimeout(() => {
-        playSound('draw');
         if (isPvP) {
           sendAction({ type: 'addDrawnCardToHand' });
         } else {
@@ -347,11 +400,16 @@ const Game: React.FC = () => {
   }, [hasDrawnCardThisTurn, activePlayerIndex, playerIndex]);
 
   useEffect(() => {
+    if (gameState.pendingReward) {
+      handleTokenReward(gameState.pendingReward.amount, gameState.pendingReward.reason);
+      setGameState(prevState => ({ ...prevState, pendingReward: undefined }));
+    }
+  }, [gameState.pendingReward]);
+
+  useEffect(() => {
     if (status === 'roundOver') {
       if (winnerId === player.id) {
-        playSound('win');
       } else if (winnerId === opponent.id) {
-        playSound('lose');
       } else {
         // Draw
       }
@@ -359,38 +417,34 @@ const Game: React.FC = () => {
       if (userProfile && !hasRecordedGame) {
         const isWin = winnerId === player.id;
         const isLoss = winnerId === opponent.id;
-        const isDraw = winnerId === null;
         
-        console.log('Recording round result:', { isWin, isLoss, isDraw, winnerId, playerId: player.id });
+        console.log('Recording round result:', { isWin, isLoss, winnerId, playerId: player.id });
         
         updateProfile({
           gamesPlayed: (userProfile.gamesPlayed || 0) + 1,
           wins: (userProfile.wins || 0) + (isWin ? 1 : 0),
-          losses: (userProfile.losses || 0) + (isLoss ? 1 : 0),
-          draws: (userProfile.draws || 0) + (isDraw ? 1 : 0)
+          losses: (userProfile.losses || 0) + (isLoss ? 1 : 0)
         });
+        
         setHasRecordedGame(true);
       }
     } else if (status === 'gameOver') {
       if (player.persistentScore > opponent.persistentScore) {
-        playSound('win');
       } else if (player.persistentScore < opponent.persistentScore) {
-        playSound('lose');
       }
 
       if (userProfile && !hasRecordedGame) {
         const isWin = player.persistentScore > opponent.persistentScore;
         const isLoss = player.persistentScore < opponent.persistentScore;
-        const isDraw = player.persistentScore === opponent.persistentScore;
         
-        console.log('Recording game result:', { isWin, isLoss, isDraw, playerScores: [player.persistentScore, opponent.persistentScore] });
+        console.log('Recording game result:', { isWin, isLoss, playerScores: [player.persistentScore, opponent.persistentScore] });
         
         updateProfile({
           gamesPlayed: (userProfile.gamesPlayed || 0) + 1,
           wins: (userProfile.wins || 0) + (isWin ? 1 : 0),
-          losses: (userProfile.losses || 0) + (isLoss ? 1 : 0),
-          draws: (userProfile.draws || 0) + (isDraw ? 1 : 0)
+          losses: (userProfile.losses || 0) + (isLoss ? 1 : 0)
         });
+        
         setHasRecordedGame(true);
       }
     }
@@ -407,7 +461,6 @@ const Game: React.FC = () => {
         const bestCard = findBestCardToPlay(currentPlayer, targetNumber);
         
         if (bestCard) {
-           playSound('play');
            let selectedValue: number | undefined;
            if (bestCard.type === 'golden') {
              selectedValue = getBestGoldenCardValue(currentPlayer, targetNumber);
@@ -453,9 +506,9 @@ const Game: React.FC = () => {
 
   return (
     <div className="w-full max-w-md mx-auto h-[100dvh] flex flex-col items-center justify-between text-white p-1 font-sans relative overflow-hidden">
-      {/* Online Users (Top Left) */}
-      <div className="absolute top-4 left-4 text-xs text-white/50 z-40 flex items-center gap-1.5 font-medium tracking-wide">
-        <div className={`w-1.5 h-1.5 rounded-full ${onlineUsers > 0 ? 'bg-green-500 animate-pulse' : 'bg-yellow-500'}`} />
+      {/* Online Users (Bottom Center) */}
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-xs text-white/80 z-40 flex items-center gap-2 font-medium tracking-wide bg-black/40 px-4 py-1.5 rounded-full backdrop-blur-sm border border-white/10 shadow-lg">
+        <div className={`w-2 h-2 rounded-full ${onlineUsers > 0 ? 'bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.8)]' : 'bg-yellow-500'}`} />
         {Math.max(1, onlineUsers)} online
       </div>
 
@@ -511,13 +564,19 @@ const Game: React.FC = () => {
           )}
         </div>
       ) : (
-        <button
-          onClick={() => setShowLogin(true)}
-          className="absolute top-4 right-4 z-40 px-3 py-1.5 bg-black text-white rounded-lg shadow-[0_4px_0_#333] active:shadow-none active:translate-y-[4px] flex items-center gap-2 font-bold text-xs transition-all border-none"
-        >
-          <LogIn size={14} />
-          Login / Sign Up
-        </button>
+        <div className="absolute top-4 right-4 z-40 flex flex-col items-end gap-2">
+          <div className="flex items-center gap-2 px-2 py-1 bg-black/40 backdrop-blur-sm rounded-full border border-amber-500/30 shadow-lg">
+            <Coins size={14} className="text-amber-400" />
+            <span className="text-xs font-bold text-amber-200">{localTokens}</span>
+          </div>
+          <button
+            onClick={() => setShowLogin(true)}
+            className="px-3 py-1.5 bg-black text-white rounded-lg shadow-[0_4px_0_#333] active:shadow-none active:translate-y-[4px] flex items-center gap-2 font-bold text-xs transition-all border-none"
+          >
+            <LogIn size={14} />
+            Login / Sign Up
+          </button>
+        </div>
       )}
 
       {(status === 'roundOver' || status === 'gameOver') && (
@@ -526,7 +585,9 @@ const Game: React.FC = () => {
             {status === 'roundOver' && (
               <>
                 <h2 className="text-4xl font-bold mb-2">Winner:</h2>
-                <h3 className="text-6xl font-bold mb-4">{winnerId === player.id ? 'You!' : 'Opponent'}</h3>
+                <h3 className="text-6xl font-bold mb-4">
+                  {winnerId === player.id ? 'You!' : 'Opponent'}
+                </h3>
                 <button 
                   onClick={() => {
                     if (isPvP) {
@@ -537,7 +598,7 @@ const Game: React.FC = () => {
                   }} 
                   className="px-6 py-2 bg-theme-600 rounded-lg hover:bg-theme-500"
                 >
-                  Start a new game
+                  Start a new round
                 </button>
               </>
             )}
@@ -552,6 +613,23 @@ const Game: React.FC = () => {
         </div>
       )}
 
+      {/* Reset Game Button */}
+      <button
+        onClick={() => {
+          if (isPvP) {
+            disconnectPvP();
+            startMatchmaking(gameState.isStrategicMode, gameState.gameMode);
+          } else {
+            setGameState(initGame(gameState.isStrategicMode, gameState.gameMode));
+          }
+        }}
+        className="absolute top-4 left-4 z-40 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white backdrop-blur-sm transition-all shadow-sm flex items-center gap-2"
+        title="Reset Game"
+      >
+        <RefreshCw size={16} />
+        <span className="text-xs font-medium hidden md:inline">Reset</span>
+      </button>
+
       {/* Opponent Area */}
       <div className="w-full flex flex-col items-center gap-1 pt-12">
         <div className="flex justify-between w-full px-4 items-center">
@@ -559,6 +637,15 @@ const Game: React.FC = () => {
             {opponent.name || 'Opponent'}
             {opponent.cleanSlate && (
               <span className="text-[10px] bg-theme-500/80 text-white px-1.5 py-0.5 rounded-full whitespace-nowrap">Clean Slate</span>
+            )}
+            {isPvP && (
+              <button
+                onClick={() => setIsChatOpen(true)}
+                className="ml-2 p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-colors relative"
+                title="Chat with opponent"
+              >
+                <MessageCircle size={16} />
+              </button>
             )}
           </div>
           <div className="text-base font-bold">Sum: {opponent.score}</div>
@@ -843,7 +930,7 @@ const Game: React.FC = () => {
                 <div className="flex gap-2 p-2 rounded-lg border-2 border-[var(--theme-700)] shadow-xl" style={{ backgroundColor: 'var(--theme-900)' }}>
                   <button 
                     onClick={() => {
-                      playSound('play');
+                      
                       if (isPvP) {
                         sendAction({ type: 'addDrawnCardToTarget' });
                       } else {
@@ -856,7 +943,6 @@ const Game: React.FC = () => {
                   </button>
                   <button 
                     onClick={() => {
-                      playSound('draw');
                       if (isPvP) {
                         sendAction({ type: 'addDrawnCardToHand' });
                       } else {
@@ -937,21 +1023,19 @@ const Game: React.FC = () => {
                   <motion.div
                     animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.8, 0.5] }}
                     transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                    className="absolute inset-0 bg-purple-500 rounded-full blur-md"
+                    className="absolute inset-0 bg-blue-500 rounded-full blur-md"
                   />
                   <button 
                     onClick={() => {
                       if (isPremium) {
-                        playSound('play');
                         setIsGameModeModalOpen(true);
                         setIsLeftMenuOpen(false);
                       } else {
-                        playSound('play');
                         setShowSpecialGameModal(true);
                         setIsLeftMenuOpen(false);
                       }
                     }}
-                    className="relative w-12 h-12 rounded-full shadow-lg flex items-center justify-center bg-purple-600 hover:bg-purple-500 text-white hover:scale-110 transition-transform border-2 border-purple-400 z-10"
+                    className="relative w-12 h-12 rounded-full shadow-lg flex items-center justify-center bg-gradient-to-br from-teal-400 via-blue-500 to-indigo-900 hover:from-teal-300 hover:via-blue-400 hover:to-indigo-800 text-white hover:scale-110 transition-all border-2 border-teal-300 z-10"
                     title="Special Cards Game"
                   >
                     <Gamepad2 size={24} />
@@ -964,11 +1048,11 @@ const Game: React.FC = () => {
 
           <button
             onClick={() => setIsLeftMenuOpen(!isLeftMenuOpen)}
-            className="w-14 h-14 border-2 border-theme-500 rounded-full flex items-center justify-center text-white hover:bg-theme-600 transition-colors shadow-xl"
-            style={{ backgroundColor: 'var(--theme-800)' }}
+            className="w-14 h-14 rounded-full flex items-center justify-center text-white shadow-[0_0_15px_rgba(168,85,247,0.5)] hover:shadow-[0_0_25px_rgba(168,85,247,0.8)] hover:scale-105 transition-all bg-gradient-to-br from-purple-400 via-purple-600 to-indigo-800 border-2 border-purple-300 relative overflow-hidden group"
           >
-            <motion.div animate={{ rotate: isLeftMenuOpen ? 180 : 0 }}>
-              <ChevronUp size={24} />
+            <div className="absolute inset-0 bg-gradient-to-tr from-fuchsia-500 via-purple-500 to-cyan-500 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+            <motion.div animate={{ scale: isLeftMenuOpen ? 0.9 : 1, rotate: isLeftMenuOpen ? -10 : 0 }} className="relative z-10">
+              <Gamepad2 size={28} className="drop-shadow-md" />
             </motion.div>
           </button>
         </div>
@@ -1470,6 +1554,94 @@ const Game: React.FC = () => {
         )}
       </AnimatePresence>
 
+      {/* Chat Modal */}
+      <AnimatePresence>
+        {isChatOpen && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+            onClick={() => setIsChatOpen(false)}
+          >
+            <div 
+              className="bg-theme-900 border border-theme-700 rounded-2xl w-full max-w-md h-[60vh] flex flex-col overflow-hidden shadow-2xl"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="p-4 border-b border-theme-700 flex justify-between items-center bg-theme-800/50">
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <MessageCircle size={20} className="text-theme-400" />
+                  Chat with {opponent.name || 'Opponent'}
+                </h3>
+                <button 
+                  onClick={() => setIsChatOpen(false)}
+                  className="text-theme-400 hover:text-white transition-colors p-1"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
+                {gameState.chatMessages?.length === 0 ? (
+                  <div className="m-auto text-theme-500 text-sm text-center">
+                    No messages yet. Say hello!
+                  </div>
+                ) : (
+                  gameState.chatMessages?.map((msg, idx) => {
+                    const isMe = msg.senderId === player.id;
+                    return (
+                      <div key={idx} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                        <div 
+                          className={`max-w-[80%] px-4 py-2 rounded-2xl ${
+                            isMe 
+                              ? 'bg-theme-600 text-white rounded-tr-sm' 
+                              : 'bg-theme-800 text-theme-100 rounded-tl-sm border border-theme-700'
+                          }`}
+                        >
+                          {msg.text}
+                        </div>
+                        <span className="text-[10px] text-theme-500 mt-1 px-1">
+                          {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+              
+              <form 
+                className="p-3 border-t border-theme-700 bg-theme-800/30 flex gap-2"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!chatMessage.trim()) return;
+                  sendAction({
+                    type: 'chatMessage',
+                    senderId: player.id,
+                    text: chatMessage.trim()
+                  });
+                  setChatMessage('');
+                }}
+              >
+                <input
+                  type="text"
+                  value={chatMessage}
+                  onChange={e => setChatMessage(e.target.value)}
+                  placeholder="Type a message..."
+                  className="flex-1 bg-theme-900 border border-theme-700 rounded-full px-4 py-2 text-sm text-white focus:outline-none focus:border-theme-500 transition-colors"
+                />
+                <button 
+                  type="submit"
+                  disabled={!chatMessage.trim()}
+                  className="bg-theme-600 hover:bg-theme-500 disabled:opacity-50 disabled:hover:bg-theme-600 text-white rounded-full px-4 py-2 text-sm font-bold transition-colors"
+                >
+                  Send
+                </button>
+              </form>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Golden Card Modal */}
       <AnimatePresence>
         {isGoldenCardModalOpen && (
@@ -1546,7 +1718,6 @@ const Game: React.FC = () => {
                       handlePlayCard(selectedGoldenCardId, goldenCardValue);
                       setIsGoldenCardModalOpen(false);
                       setSelectedGoldenCardId(null);
-                      playSound('play');
                     }
                   }}
                   className={`flex-1 py-3 font-bold rounded-lg shadow-lg transform transition-all ${goldenCardValue === null ? 'bg-gray-600 text-gray-400 cursor-not-allowed' : 'bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-400 hover:to-yellow-500 text-white hover:scale-105'}`}
@@ -1615,6 +1786,19 @@ const Game: React.FC = () => {
           }
         }}
       />
+
+      {/* Token Animations */}
+      {tokenAnimations.map(anim => (
+        <TokenAnimation
+          key={anim.id}
+          id={anim.id}
+          amount={anim.amount}
+          startX={anim.x}
+          startY={anim.y}
+          reason={anim.reason}
+          onComplete={(id) => setTokenAnimations(prev => prev.filter(a => a.id !== id))}
+        />
+      ))}
     </div>
   );
 };

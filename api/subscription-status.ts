@@ -8,7 +8,6 @@ export default async function handler(req: any, res: any) {
 
   const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
   if (!STRIPE_SECRET_KEY) {
-    console.error('Missing STRIPE_SECRET_KEY environment variable in Vercel');
     // Return false gracefully so the app doesn't break, just defaults to free tier
     return res.status(200).json({ isPremium: false, error: 'Stripe not configured' });
   }
