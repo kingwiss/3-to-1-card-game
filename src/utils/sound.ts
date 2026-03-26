@@ -9,8 +9,9 @@ export const resumeAudio = async () => {
 
 export const playSound = (type: 'draw' | 'play' | 'sabotage' | 'limitLift' | 'win' | 'lose' | 'opponent' | 'tick' | 'coinShuffle' | 'coinLand') => {
   const nowMs = Date.now();
-  if (lastPlayed[type] && nowMs - lastPlayed[type] < 500) {
-    return; // Throttle sounds of the same type to prevent overlapping cacophony
+  const throttleTime = (type === 'coinShuffle' || type === 'coinLand') ? 1000 : 500;
+  if (lastPlayed[type] && nowMs - lastPlayed[type] < throttleTime) {
+    return; // Throttle sounds to prevent overlapping cacophony
   }
   lastPlayed[type] = nowMs;
 
@@ -94,12 +95,11 @@ export const playSound = (type: 'draw' | 'play' | 'sabotage' | 'limitLift' | 'wi
     osc.start(now);
     osc.stop(now + 0.5);
   } else if (type === 'coinShuffle') {
-    // Realistic coin shuffling/clinking sound
-    for (let i = 0; i < 15; i++) {
+    // Very simple and short clink
+    for (let i = 0; i < 2; i++) {
         const osc = audioCtx.createOscillator();
         const gainNode = audioCtx.createGain();
         
-        // Highpass filter to remove low frequencies and make it sound more "metallic"
         const filter = audioCtx.createBiquadFilter();
         filter.type = 'highpass';
         filter.frequency.value = 4000;
@@ -108,59 +108,49 @@ export const playSound = (type: 'draw' | 'play' | 'sabotage' | 'limitLift' | 'wi
         filter.connect(gainNode);
         gainNode.connect(audioCtx.destination);
         
-        // Mix of sine and square for a metallic "clink"
-        osc.type = i % 2 === 0 ? 'sine' : 'square';
-        
-        // Random high frequencies typical of small metal objects
-        const freq = 3000 + Math.random() * 4000;
-        const timeOffset = now + i * 0.05 + Math.random() * 0.02;
-        
-        osc.frequency.setValueAtTime(freq, timeOffset);
-        osc.frequency.exponentialRampToValueAtTime(freq * 1.5, timeOffset + 0.03);
-        
-        gainNode.gain.setValueAtTime(0, timeOffset);
-        gainNode.gain.linearRampToValueAtTime(0.05 + Math.random() * 0.05, timeOffset + 0.01);
-        gainNode.gain.exponentialRampToValueAtTime(0.001, timeOffset + 0.05);
-        
-        osc.start(timeOffset);
-        osc.stop(timeOffset + 0.06);
-    }
-  } else if (type === 'coinLand') {
-    // A bright, satisfying "ka-ching" or solid coin drop when hitting the profile
-    const frequencies = [1200, 1600, 2400];
-    frequencies.forEach((freq, i) => {
-        const osc = audioCtx.createOscillator();
-        const gainNode = audioCtx.createGain();
-        
-        osc.connect(gainNode);
-        gainNode.connect(audioCtx.destination);
-        
         osc.type = 'sine';
         
-        // Slight delay between tones for a "sparkle" effect
-        const startTime = now + i * 0.03;
+        const freq = 4000 + Math.random() * 2000;
+        const timeOffset = now + i * 0.05;
         
-        osc.frequency.setValueAtTime(freq, startTime);
+        osc.frequency.setValueAtTime(freq, timeOffset);
         
-        gainNode.gain.setValueAtTime(0, startTime);
-        gainNode.gain.linearRampToValueAtTime(0.15, startTime + 0.02);
-        gainNode.gain.exponentialRampToValueAtTime(0.001, startTime + 0.4);
+        gainNode.gain.setValueAtTime(0, timeOffset);
+        gainNode.gain.linearRampToValueAtTime(0.05, timeOffset + 0.01);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, timeOffset + 0.03);
         
-        osc.start(startTime);
-        osc.stop(startTime + 0.5);
-    });
+        osc.start(timeOffset);
+        osc.stop(timeOffset + 0.04);
+    }
+  } else if (type === 'coinLand') {
+    // A single, short "ping"
+    const osc = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
     
-    // Add a quick "thud" for the physical impact
+    osc.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+    
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(2000, now);
+    
+    gainNode.gain.setValueAtTime(0, now);
+    gainNode.gain.linearRampToValueAtTime(0.1, now + 0.01);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+    
+    osc.start(now);
+    osc.stop(now + 0.15);
+    
+    // Very quick thud
     const thudOsc = audioCtx.createOscillator();
     const thudGain = audioCtx.createGain();
     thudOsc.connect(thudGain);
     thudGain.connect(audioCtx.destination);
     thudOsc.type = 'triangle';
-    thudOsc.frequency.setValueAtTime(150, now);
-    thudOsc.frequency.exponentialRampToValueAtTime(40, now + 0.1);
-    thudGain.gain.setValueAtTime(0.2, now);
-    thudGain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+    thudOsc.frequency.setValueAtTime(100, now);
+    thudOsc.frequency.exponentialRampToValueAtTime(40, now + 0.03);
+    thudGain.gain.setValueAtTime(0.05, now);
+    thudGain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
     thudOsc.start(now);
-    thudOsc.stop(now + 0.1);
+    thudOsc.stop(now + 0.03);
   }
 };

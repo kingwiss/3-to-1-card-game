@@ -333,7 +333,7 @@ const Game: React.FC = () => {
         }, 1000);
       } else if (drawnCard) {
         timer = setTimeout(() => {
-          playSound('draw');
+          playSound('play');
           setGameState(prevState => {
             if (prevState.pendingGambleDecision) {
               const choice = Math.random() < 0.3 ? 'negative' : 'positive';
@@ -954,6 +954,7 @@ const Game: React.FC = () => {
                   </button>
                   <button 
                     onClick={() => {
+                      playSound('play');
                       if (isPvP) {
                         sendAction({ type: 'addDrawnCardToHand' });
                       } else {
