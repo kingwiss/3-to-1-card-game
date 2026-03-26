@@ -239,6 +239,7 @@ const Game: React.FC = () => {
 
   const handleDrawCard = () => {
     if (status === 'playing' && activePlayerIndex === playerIndex && !hasDrawnCardThisTurn) {
+      playSound('draw');
       if (isPvP) {
         sendAction({ type: 'drawCard' });
       } else {
@@ -250,6 +251,7 @@ const Game: React.FC = () => {
 
   const onGambleChoice = (cardId: string, choice: 'positive' | 'negative') => {
     if (status === 'playing' && activePlayerIndex === playerIndex) {
+      playSound('play');
       
       if (choice === 'negative') {
         const card = player.hand.find(c => c.id === cardId);
@@ -267,6 +269,7 @@ const Game: React.FC = () => {
 
   const handlePlayCard = (cardId: string, selectedValue?: number) => {
     if (status === 'playing' && activePlayerIndex === playerIndex && hasDrawnCardThisTurn && !drawnCard) {
+      playSound('play');
       
       const card = player.hand.find(c => c.id === cardId);
       if (card) {
@@ -325,10 +328,12 @@ const Game: React.FC = () => {
 
       if (!hasDrawnCardThisTurn) {
         timer = setTimeout(() => {
+          playSound('draw');
           setGameState(prevState => drawCard(prevState));
         }, 1000);
       } else if (drawnCard) {
         timer = setTimeout(() => {
+          playSound('draw');
           setGameState(prevState => {
             if (prevState.pendingGambleDecision) {
               const choice = Math.random() < 0.3 ? 'negative' : 'positive';
@@ -357,6 +362,7 @@ const Game: React.FC = () => {
 
           const bestCard = findBestCardToPlay(aiPlayer, targetNumber);
           if (bestCard) {
+            playSound('play');
             let selectedValue: number | undefined;
             if (bestCard.type === 'golden') {
               selectedValue = getBestGoldenCardValue(aiPlayer, targetNumber);
@@ -381,6 +387,7 @@ const Game: React.FC = () => {
   useEffect(() => {
     if (drawnCard && !pendingTargetDecision && !pendingGambleDecision && activePlayerIndex === playerIndex) {
       const timer = setTimeout(() => {
+        playSound('draw');
         if (isPvP) {
           sendAction({ type: 'addDrawnCardToHand' });
         } else {
@@ -409,7 +416,9 @@ const Game: React.FC = () => {
   useEffect(() => {
     if (status === 'roundOver') {
       if (winnerId === player.id) {
+        playSound('win');
       } else if (winnerId === opponent.id) {
+        playSound('lose');
       } else {
         // Draw
       }
@@ -430,7 +439,9 @@ const Game: React.FC = () => {
       }
     } else if (status === 'gameOver') {
       if (player.persistentScore > opponent.persistentScore) {
+        playSound('win');
       } else if (player.persistentScore < opponent.persistentScore) {
+        playSound('lose');
       }
 
       if (userProfile && !hasRecordedGame) {
@@ -930,7 +941,7 @@ const Game: React.FC = () => {
                 <div className="flex gap-2 p-2 rounded-lg border-2 border-[var(--theme-700)] shadow-xl" style={{ backgroundColor: 'var(--theme-900)' }}>
                   <button 
                     onClick={() => {
-                      
+                      playSound('play');
                       if (isPvP) {
                         sendAction({ type: 'addDrawnCardToTarget' });
                       } else {
