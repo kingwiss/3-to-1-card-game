@@ -1,4 +1,5 @@
 let audioCtx: AudioContext | null = null;
+const lastPlayed: Record<string, number> = {};
 
 export const resumeAudio = async () => {
   if (audioCtx && audioCtx.state === 'suspended') {
@@ -7,6 +8,12 @@ export const resumeAudio = async () => {
 };
 
 export const playSound = (type: 'draw' | 'play' | 'sabotage' | 'limitLift' | 'win' | 'lose' | 'opponent' | 'tick' | 'coinShuffle' | 'coinLand') => {
+  const nowMs = Date.now();
+  if (lastPlayed[type] && nowMs - lastPlayed[type] < 500) {
+    return; // Throttle sounds of the same type to prevent overlapping cacophony
+  }
+  lastPlayed[type] = nowMs;
+
   if (!audioCtx) {
     audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
   }

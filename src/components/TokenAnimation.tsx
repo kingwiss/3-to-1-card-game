@@ -52,12 +52,10 @@ const TokenAnimation: React.FC<TokenAnimationProps> = ({ id, amount, startX, sta
         setShowSparks(true);
     }, 800);
 
-    // Play land sound for each coin as it hits the target
-    const soundTimers = Array.from({ length: numCoins }).map((_, i) => {
-      return setTimeout(() => {
-        playSound('coinLand');
-      }, 800 + i * 50); // 800ms travel time + 50ms delay per coin
-    });
+    // Play land sound ONCE when the first coin hits the target
+    const landSoundTimer = setTimeout(() => {
+      playSound('coinLand');
+    }, 800); // 800ms travel time
 
     const timer = setTimeout(() => {
       onComplete(id);
@@ -66,7 +64,7 @@ const TokenAnimation: React.FC<TokenAnimationProps> = ({ id, amount, startX, sta
     return () => {
       clearTimeout(timer);
       clearTimeout(sparkTimer);
-      soundTimers.forEach(t => clearTimeout(t));
+      clearTimeout(landSoundTimer);
     };
   }, [amount, id, onComplete, reason]);
 
