@@ -251,6 +251,8 @@ const Game: React.FC = () => {
 
   useEffect(() => {
     if (gameId && lastRewardedGameId.current !== gameId) {
+      // Ensure sound is resumed before playing
+      resumeAudio();
       handleTokenReward(10, 'game_start');
       lastRewardedGameId.current = gameId;
     }

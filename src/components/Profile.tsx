@@ -1,12 +1,30 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { motion } from 'framer-motion';
 import { User, Edit2, Save, X, Trophy, Swords, History, CreditCard, Coins } from 'lucide-react';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../services/firebase';
 
 const Profile: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const { user, userProfile, updateProfile } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [newName, setNewName] = useState(userProfile?.displayName || user?.displayName || 'Player');
+  const [localProfile, setLocalProfile] = useState(userProfile);
+
+  useEffect(() => {
+    setLocalProfile(userProfile);
+    
+    const fetchLatestProfile = async () => {
+      if (user) {
+        const docRef = doc(db, 'users', user.uid);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          setLocalProfile(docSnap.data() as any);
+        }
+      }
+    };
+    fetchLatestProfile();
+  }, [user, userProfile]);
 
   const handleManageSubscription = async () => {
     try {
@@ -39,7 +57,7 @@ const Profile: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     }
   };
 
-  if (!userProfile) return null;
+  if (!localProfile) return null;
 
   return (
     <motion.div
@@ -63,10 +81,10 @@ const Profile: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
         <div className="flex flex-col items-center mb-8">
           <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-4xl font-bold text-white mb-4 shadow-lg overflow-hidden">
-            {userProfile.photoURL ? (
-              <img src={userProfile.photoURL} alt="Profile" className="w-full h-full object-cover" />
+            {localProfile.photoURL ? (
+              <img src={localProfile.photoURL} alt="Profile" className="w-full h-full object-cover" />
             ) : (
-              (userProfile.displayName || 'P').charAt(0).toUpperCase()
+              (localProfile.displayName || 'P').charAt(0).toUpperCase()
             )}
           </div>
 
@@ -88,7 +106,7 @@ const Profile: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             </div>
           ) : (
             <div className="flex items-center gap-2">
-              <h2 className="text-2xl font-bold text-white">{userProfile.displayName || 'Player'}</h2>
+              <h2 className="text-2xl font-bold text-white">{localProfile.displayName || 'Player'}</h2>
               <button
                 onClick={() => setIsEditing(true)}
                 className="text-slate-400 hover:text-blue-400 transition-colors"
@@ -98,7 +116,7 @@ const Profile: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             </div>
           )}
           
-          {userProfile.isPremium && (
+          {localProfile.isPremium && (
             <span className="mt-2 px-3 py-1 bg-yellow-500/20 text-yellow-400 text-xs font-bold rounded-full border border-yellow-500/50 flex items-center gap-1">
               <Trophy size={12} /> PREMIUM MEMBER
             </span>
@@ -108,23 +126,23 @@ const Profile: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         <div className="grid grid-cols-2 gap-2 mb-6">
           <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700 flex flex-col items-center">
             <Trophy className="text-yellow-400 mb-1" size={20} />
-            <span className="text-xl font-bold text-white">{userProfile.wins || 0}</span>
+            <span className="text-xl font-bold text-white">{localProfile.wins || 0}</span>
             <span className="text-[10px] text-slate-400 uppercase tracking-wider">Wins</span>
           </div>
           <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700 flex flex-col items-center">
             <Swords className="text-red-400 mb-1" size={20} />
-            <span className="text-xl font-bold text-white">{userProfile.losses || 0}</span>
+            <span className="text-xl font-bold text-white">{localProfile.losses || 0}</span>
             <span className="text-[10px] text-slate-400 uppercase tracking-wider">Losses</span>
           </div>
           <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700 flex flex-col items-center">
             <History className="text-green-400 mb-1" size={20} />
-            <span className="text-xl font-bold text-white">{userProfile.gamesPlayed || 0}</span>
+            <span className="text-xl font-bold text-white">{localProfile.gamesPlayed || 0}</span>
             <span className="text-[10px] text-slate-400 uppercase tracking-wider">Games</span>
           </div>
           <div className="bg-slate-900/50 p-3 rounded-xl border border-amber-500/50 flex flex-col items-center relative overflow-hidden group">
             <div className="absolute inset-0 bg-gradient-to-br from-amber-400/10 to-orange-600/10 group-hover:opacity-100 transition-opacity"></div>
             <Coins className="text-amber-400 mb-1 drop-shadow-[0_0_8px_rgba(251,191,36,0.8)]" size={20} />
-            <span className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-amber-200 to-orange-400 drop-shadow-sm">{userProfile.tokens || 0}</span>
+            <span className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-amber-200 to-orange-400 drop-shadow-sm">{localProfile.tokens || 0}</span>
             <span className="text-[10px] text-amber-500/80 uppercase tracking-wider font-bold">Tokens</span>
           </div>
         </div>
@@ -133,7 +151,7 @@ const Profile: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           Member since {new Date().getFullYear()}
         </div>
 
-        {userProfile.isPremium && (
+        {localProfile.isPremium && (
           <button
             onClick={handleManageSubscription}
             className="w-full py-3 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 mb-2"
