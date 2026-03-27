@@ -283,6 +283,19 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           case "addDrawnCardToTarget": newState = addDrawnCardToTarget(newState); break;
           case "gambleChoice": newState = handleGambleChoice(newState, action.cardId, action.choice); break;
           case "playCard": newState = playCard(newState, action.cardId, action.selectedValue); break;
+          case "forcePlayCard": {
+            let stateToPlay = newState;
+            if (!stateToPlay.hasDrawnCardThisTurn) {
+              stateToPlay = { ...stateToPlay, hasDrawnCardThisTurn: true };
+            }
+            const nextState = playCard(stateToPlay, action.cardId, action.selectedValue);
+            if (nextState === stateToPlay) {
+              newState = endTurn(stateToPlay);
+            } else {
+              newState = nextState;
+            }
+            break;
+          }
           case "endTurn": newState = endTurn(newState); break;
           case "startNextRound": newState = startNextRound(newState); break;
           case "syncName":

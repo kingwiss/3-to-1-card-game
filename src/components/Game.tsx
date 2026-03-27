@@ -472,7 +472,7 @@ const Game: React.FC = () => {
     let timer: NodeJS.Timeout;
     const isMyTurn = activePlayerIndex === playerIndex;
 
-    if (isMyTurn && hasDrawnCardThisTurn && !drawnCard && !pendingTargetDecision && status === 'playing') {
+    if (isMyTurn && !drawnCard && !pendingTargetDecision && status === 'playing') {
       timer = setTimeout(() => {
         // Auto-play logic for 10s rule
         const currentPlayer = players[activePlayerIndex];
@@ -484,12 +484,16 @@ const Game: React.FC = () => {
              selectedValue = getBestGoldenCardValue(currentPlayer, targetNumber);
            }
            if (isPvP) {
-             sendAction({ type: 'playCard', cardId: bestCard.id, selectedValue });
+             sendAction({ type: 'forcePlayCard', cardId: bestCard.id, selectedValue });
            } else {
              setGameState(prevState => {
-               const newState = playCard(prevState, bestCard.id, selectedValue);
-               if (newState === prevState) {
-                 return endTurn(prevState);
+               let stateToPlay = prevState;
+               if (!stateToPlay.hasDrawnCardThisTurn) {
+                 stateToPlay = { ...stateToPlay, hasDrawnCardThisTurn: true };
+               }
+               const newState = playCard(stateToPlay, bestCard.id, selectedValue);
+               if (newState === stateToPlay) {
+                 return endTurn(stateToPlay);
                }
                return newState;
              });

@@ -13,9 +13,9 @@ const designateGambleCards = (deck: Card[]): Card[] => {
     }
   });
 
-  // Replace 5 or 6 random number cards with gamble cards
+  // Replace 5 to 7 random number cards with gamble cards
   const numberCardIndices = deck.map((c, i) => c.type === 'number' ? i : -1).filter(i => i !== -1);
-  const gambleCount = Math.random() < 0.5 ? 5 : 6;
+  const gambleCount = Math.floor(Math.random() * 3) + 5; // 5, 6, or 7
   for (let i = 0; i < gambleCount; i++) {
     if (numberCardIndices.length === 0) break;
     const randomIndex = Math.floor(Math.random() * numberCardIndices.length);
@@ -1000,7 +1000,15 @@ export const startNextRound = (gameState: GameState): GameState => {
 
   let deck = shuffleDeck(createDeck(gameMode));
 
-  const targetLineup = deck.splice(0, TARGET_LINEUP_SIZE);
+  const targetLineup: Card[] = [];
+  while (targetLineup.length < TARGET_LINEUP_SIZE) {
+    const cardIndex = deck.findIndex(c => c.type !== 'gamble');
+    if (cardIndex !== -1) {
+      targetLineup.push(deck.splice(cardIndex, 1)[0]);
+    } else {
+      break;
+    }
+  }
   const targetNumber = targetLineup.reduce((sum, card) => sum + (card.value || 0), 0); // Handle golden cards having 0 value initially
 
   const newPlayers: Player[] = players.map(p => {
@@ -1052,7 +1060,15 @@ export const startNextRound = (gameState: GameState): GameState => {
 export const initGame = (isStrategicMode: boolean = false, gameMode: 'normal' | 'special' = 'normal'): GameState => {
   let deck = shuffleDeck(createDeck(gameMode));
 
-  const targetLineup = deck.splice(0, TARGET_LINEUP_SIZE);
+  const targetLineup: Card[] = [];
+  while (targetLineup.length < TARGET_LINEUP_SIZE) {
+    const cardIndex = deck.findIndex(c => c.type !== 'gamble');
+    if (cardIndex !== -1) {
+      targetLineup.push(deck.splice(cardIndex, 1)[0]);
+    } else {
+      break;
+    }
+  }
   const targetNumber = targetLineup.reduce((sum, card) => sum + (card.value || 0), 0);
 
   const players: Player[] = [
