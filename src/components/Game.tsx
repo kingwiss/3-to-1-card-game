@@ -90,6 +90,21 @@ const Game: React.FC = () => {
   const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
   const [isLeftMenuOpen, setIsLeftMenuOpen] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [lastMessageCount, setLastMessageCount] = useState(0);
+
+  useEffect(() => {
+    const currentCount = gameState.chatMessages?.length || 0;
+    if (isChatOpen) {
+      setUnreadCount(0);
+      setLastMessageCount(currentCount);
+    } else if (currentCount > lastMessageCount) {
+      setUnreadCount(prev => prev + (currentCount - lastMessageCount));
+      setLastMessageCount(currentCount);
+      playSound('message');
+    }
+  }, [gameState.chatMessages, isChatOpen, lastMessageCount]);
+
   const [chatMessage, setChatMessage] = useState('');
   const [isGameModeModalOpen, setIsGameModeModalOpen] = useState(false);
   const [isGoldenCardModalOpen, setIsGoldenCardModalOpen] = useState(false);
@@ -660,10 +675,15 @@ const Game: React.FC = () => {
             {isPvP && (
               <button
                 onClick={() => setIsChatOpen(true)}
-                className="ml-2 p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-colors relative"
+                className="ml-2 p-2 rounded-full bg-gradient-to-br from-theme-600 to-theme-800 text-white shadow-lg shadow-black/20 hover:shadow-theme-600/50 transition-all duration-300 relative"
                 title="Chat with opponent"
               >
-                <MessageCircle size={16} />
+                <MessageCircle size={18} />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center font-bold">
+                    {unreadCount}
+                  </span>
+                )}
               </button>
             )}
           </div>

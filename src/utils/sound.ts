@@ -7,7 +7,7 @@ export const resumeAudio = async () => {
   }
 };
 
-export const playSound = (type: 'draw' | 'play' | 'target' | 'sabotage' | 'limitLift' | 'win' | 'lose' | 'opponent' | 'tick' | 'coinShuffle' | 'coinLand') => {
+export const playSound = (type: 'draw' | 'play' | 'target' | 'sabotage' | 'limitLift' | 'win' | 'lose' | 'opponent' | 'tick' | 'coinShuffle' | 'coinLand' | 'message') => {
   const nowMs = Date.now();
   const throttleTime = (type === 'coinShuffle' || type === 'coinLand') ? 1000 : 500;
   if (lastPlayed[type] && nowMs - lastPlayed[type] < throttleTime) {
@@ -105,7 +105,17 @@ export const playSound = (type: 'draw' | 'play' | 'target' | 'sabotage' | 'limit
     gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
     osc.start(now);
     osc.stop(now + 0.5);
+  } else if (type === 'message') {
+    // A soft, pleasant notification sound
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(600, now);
+    osc.frequency.setValueAtTime(800, now + 0.05);
+    gainNode.gain.setValueAtTime(0.1, now);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+    osc.start(now);
+    osc.stop(now + 0.15);
   } else if (type === 'coinShuffle') {
+
     // New, distinct sound for coins traveling (a subtle, bright trill)
     for (let i = 0; i < 3; i++) {
       const osc = audioCtx.createOscillator();

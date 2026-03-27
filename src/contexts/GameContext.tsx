@@ -24,7 +24,7 @@ const getLobbyPrefix = (isStrategic: boolean, gameMode: 'normal' | 'special') =>
   const stratPrefix = isStrategic ? 'strat' : 'std';
   return `neural-game-v1-${modePrefix}-${stratPrefix}-`;
 };
-const MAX_LOBBIES = 50;
+const MAX_LOBBIES = 500;
 
 export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [gameState, setGameState] = useState<GameState>(initGame());

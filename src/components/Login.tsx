@@ -46,7 +46,7 @@ const Login: React.FC<LoginProps> = ({ onClose }) => {
         if (username) {
           await updateFirebaseAuthProfile(userCredential.user, { displayName: username });
           const docRef = doc(db, 'users', userCredential.user.uid);
-          await setDoc(docRef, { displayName: username }, { merge: true });
+          setDoc(docRef, { displayName: username }, { merge: true }).catch(console.error);
         }
       }
 

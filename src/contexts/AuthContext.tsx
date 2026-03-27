@@ -81,7 +81,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(true);
     const docRef = doc(db, 'users', user.uid);
     
+    // Safety timeout for profile loading
+    const profileLoadingTimeout = setTimeout(() => {
+      setLoading((currentLoading) => {
+        if (currentLoading) {
+          console.warn('Profile loading timed out, forcing completion');
+          return false;
+        }
+        return currentLoading;
+      });
+    }, 5000);
+
     const unsubscribe = onSnapshot(docRef, async (docSnap) => {
+      clearTimeout(profileLoadingTimeout);
       if (docSnap.exists()) {
         const data = docSnap.data();
         const currentProfile: UserProfile = {
@@ -97,18 +109,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           specialGameResetDate: data.specialGameResetDate || Date.now(),
         };
         
+        setUserProfile(currentProfile);
+        setLoading(false);
+
         // Weekly reset logic
         const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
         const resetDate = currentProfile.specialGameResetDate || 0;
         if (Date.now() - resetDate >= ONE_WEEK_MS) {
-          await setDoc(docRef, { 
+          setDoc(docRef, { 
             specialGamesPlayedThisWeek: 0, 
             specialGameResetDate: Date.now() 
           }, { merge: true }).catch(console.error);
         }
-        
-        setUserProfile(currentProfile);
-        setLoading(false);
       } else {
         // Create new profile
         const newProfile: UserProfile = {
@@ -123,15 +135,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           specialGamesPlayedThisWeek: 0,
           specialGameResetDate: Date.now(),
         };
+        
+        setUserProfile(newProfile);
+        setLoading(false);
+        
         try {
           await setDoc(docRef, newProfile);
-          setUserProfile(newProfile);
         } catch (e) {
           console.error('Error creating profile:', e);
         }
-        setLoading(false);
       }
     }, (error) => {
+      clearTimeout(profileLoadingTimeout);
       console.error("Error listening to user profile:", error);
       setLoading(false);
     });
