@@ -1,7 +1,7 @@
 import React, { createContext, useState, ReactNode, useEffect, useCallback } from 'react';
 import { GameState } from '../types';
 import { initGame, drawCard, addDrawnCardToHand, addDrawnCardToTarget, playCard, endTurn, startNextRound, handleGambleChoice } from '../services/gameService';
-import type { Peer, DataConnection } from 'peerjs';
+import Peer, { DataConnection } from 'peerjs';
 
 interface GameContextProps {
   gameState: GameState;
@@ -81,13 +81,9 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setCancelSearch(() => cancel);
 
     try {
-      const peerModule = await import('peerjs');
-      const PeerClass = peerModule.Peer || (peerModule as any).default;
+      // PeerJS is now imported statically
+      const PeerClass = Peer;
       
-      if (!PeerClass) {
-        throw new Error("Failed to load PeerJS library");
-      }
-
       const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
       const tryLobby = async (lobbyIndex: number): Promise<'HOSTING' | 'CONNECTED' | 'NEXT'> => {
