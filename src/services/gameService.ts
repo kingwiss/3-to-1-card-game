@@ -335,12 +335,15 @@ export const handleGambleChoice = (gameState: GameState, cardId: string, choice:
     let cycleJustCompleted = false;
 
     if (revealedCard.value <= 3) {
-      if (newHighCardsUnlocked) {
+      if (newHighCardsUnlocked && newHighCardsPlayedThisCycle > 0) {
         newUnlockedNumbers = { 1: false, 2: false, 3: false };
         newUnlockedNumbers[revealedCard.value as 1 | 2 | 3] = true;
         newHighCardsUnlocked = false;
         newHighCardsPlayedThisCycle = 0;
       } else {
+        if (newUnlockedNumbers[1] && newUnlockedNumbers[2] && newUnlockedNumbers[3]) {
+          newUnlockedNumbers = { 1: false, 2: false, 3: false };
+        }
         newUnlockedNumbers[revealedCard.value as 1 | 2 | 3] = true;
         if (newUnlockedNumbers[1] && newUnlockedNumbers[2] && newUnlockedNumbers[3]) {
           newHighCardsUnlocked = true;
@@ -352,7 +355,6 @@ export const handleGambleChoice = (gameState: GameState, cardId: string, choice:
     } else {
       newHighCardsPlayedThisCycle += 1;
       if (newHighCardsPlayedThisCycle >= 2) {
-        newUnlockedNumbers = { 1: false, 2: false, 3: false };
         newHighCardsUnlocked = false;
         newHighCardsPlayedThisCycle = 0;
       }
@@ -470,12 +472,15 @@ export const playCard = (gameState: GameState, cardId: string, selectedValue?: n
     let cycleJustCompleted = false;
 
     if (card.value <= 3) {
-      if (newHighCardsUnlocked) {
+      if (newHighCardsUnlocked && newHighCardsPlayedThisCycle > 0) {
         newUnlockedNumbers = { 1: false, 2: false, 3: false };
         newUnlockedNumbers[card.value as 1 | 2 | 3] = true;
         newHighCardsUnlocked = false;
         newHighCardsPlayedThisCycle = 0;
       } else {
+        if (newUnlockedNumbers[1] && newUnlockedNumbers[2] && newUnlockedNumbers[3]) {
+          newUnlockedNumbers = { 1: false, 2: false, 3: false };
+        }
         newUnlockedNumbers[card.value as 1 | 2 | 3] = true;
         if (newUnlockedNumbers[1] && newUnlockedNumbers[2] && newUnlockedNumbers[3]) {
           newHighCardsUnlocked = true;
@@ -487,7 +492,6 @@ export const playCard = (gameState: GameState, cardId: string, selectedValue?: n
     } else {
       newHighCardsPlayedThisCycle += 1;
       if (newHighCardsPlayedThisCycle >= 2) {
-        newUnlockedNumbers = { 1: false, 2: false, 3: false };
         newHighCardsUnlocked = false;
         newHighCardsPlayedThisCycle = 0;
       }
@@ -561,12 +565,15 @@ export const playCard = (gameState: GameState, cardId: string, selectedValue?: n
     let cycleJustCompleted = false;
 
     if (selectedValue <= 3) {
-      if (newHighCardsUnlocked) {
+      if (newHighCardsUnlocked && newHighCardsPlayedThisCycle > 0) {
         newUnlockedNumbers = { 1: false, 2: false, 3: false };
         newUnlockedNumbers[selectedValue as 1 | 2 | 3] = true;
         newHighCardsUnlocked = false;
         newHighCardsPlayedThisCycle = 0;
       } else {
+        if (newUnlockedNumbers[1] && newUnlockedNumbers[2] && newUnlockedNumbers[3]) {
+          newUnlockedNumbers = { 1: false, 2: false, 3: false };
+        }
         newUnlockedNumbers[selectedValue as 1 | 2 | 3] = true;
         if (newUnlockedNumbers[1] && newUnlockedNumbers[2] && newUnlockedNumbers[3]) {
           newHighCardsUnlocked = true;
@@ -578,7 +585,6 @@ export const playCard = (gameState: GameState, cardId: string, selectedValue?: n
     } else {
       newHighCardsPlayedThisCycle += 1;
       if (newHighCardsPlayedThisCycle >= 2) {
-        newUnlockedNumbers = { 1: false, 2: false, 3: false };
         newHighCardsUnlocked = false;
         newHighCardsPlayedThisCycle = 0;
       }
@@ -643,12 +649,15 @@ export const playCard = (gameState: GameState, cardId: string, selectedValue?: n
     let cycleJustCompleted = false;
 
     if (value <= 3) {
-      if (newHighCardsUnlocked) {
+      if (newHighCardsUnlocked && newHighCardsPlayedThisCycle > 0) {
         newUnlockedNumbers = { 1: false, 2: false, 3: false };
         newUnlockedNumbers[value as 1 | 2 | 3] = true;
         newHighCardsUnlocked = false;
         newHighCardsPlayedThisCycle = 0;
       } else {
+        if (newUnlockedNumbers[1] && newUnlockedNumbers[2] && newUnlockedNumbers[3]) {
+          newUnlockedNumbers = { 1: false, 2: false, 3: false };
+        }
         newUnlockedNumbers[value as 1 | 2 | 3] = true;
         if (newUnlockedNumbers[1] && newUnlockedNumbers[2] && newUnlockedNumbers[3]) {
           newHighCardsUnlocked = true;
@@ -660,7 +669,6 @@ export const playCard = (gameState: GameState, cardId: string, selectedValue?: n
     } else {
       newHighCardsPlayedThisCycle += 1;
       if (newHighCardsPlayedThisCycle >= 2) {
-        newUnlockedNumbers = { 1: false, 2: false, 3: false };
         newHighCardsUnlocked = false;
         newHighCardsPlayedThisCycle = 0;
       }
@@ -734,12 +742,15 @@ export const playCard = (gameState: GameState, cardId: string, selectedValue?: n
     // Process each number in sequence for unlocking
     sequence.forEach(val => {
       if (val <= 3) {
-        if (newHighCardsUnlocked) {
+        if (newHighCardsUnlocked && newHighCardsPlayedThisCycle > 0) {
           newUnlockedNumbers = { 1: false, 2: false, 3: false };
           newUnlockedNumbers[val as 1 | 2 | 3] = true;
           newHighCardsUnlocked = false;
           newHighCardsPlayedThisCycle = 0;
         } else {
+          if (newUnlockedNumbers[1] && newUnlockedNumbers[2] && newUnlockedNumbers[3]) {
+            newUnlockedNumbers = { 1: false, 2: false, 3: false };
+          }
           newUnlockedNumbers[val as 1 | 2 | 3] = true;
           if (newUnlockedNumbers[1] && newUnlockedNumbers[2] && newUnlockedNumbers[3]) {
             newHighCardsUnlocked = true;
@@ -751,7 +762,6 @@ export const playCard = (gameState: GameState, cardId: string, selectedValue?: n
       } else {
         newHighCardsPlayedThisCycle += 1;
         if (newHighCardsPlayedThisCycle >= 2) {
-          newUnlockedNumbers = { 1: false, 2: false, 3: false };
           newHighCardsUnlocked = false;
           newHighCardsPlayedThisCycle = 0;
         }
@@ -822,12 +832,15 @@ export const playCard = (gameState: GameState, cardId: string, selectedValue?: n
   let cycleJustCompleted = false;
 
   if (card.value <= 3) {
-    if (newHighCardsUnlocked) {
+    if (newHighCardsUnlocked && newHighCardsPlayedThisCycle > 0) {
       newUnlockedNumbers = { 1: false, 2: false, 3: false };
       newUnlockedNumbers[card.value as 1 | 2 | 3] = true;
       newHighCardsUnlocked = false;
       newHighCardsPlayedThisCycle = 0;
     } else {
+      if (newUnlockedNumbers[1] && newUnlockedNumbers[2] && newUnlockedNumbers[3]) {
+        newUnlockedNumbers = { 1: false, 2: false, 3: false };
+      }
       newUnlockedNumbers[card.value as 1 | 2 | 3] = true;
       if (newUnlockedNumbers[1] && newUnlockedNumbers[2] && newUnlockedNumbers[3]) {
         newHighCardsUnlocked = true;
@@ -839,7 +852,6 @@ export const playCard = (gameState: GameState, cardId: string, selectedValue?: n
   } else {
     newHighCardsPlayedThisCycle += 1;
     if (newHighCardsPlayedThisCycle >= 2) {
-      newUnlockedNumbers = { 1: false, 2: false, 3: false };
       newHighCardsUnlocked = false;
       newHighCardsPlayedThisCycle = 0;
     }

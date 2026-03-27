@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useGame } from '../hooks/useGame';
 import { useAuth } from '../contexts/AuthContext';
 import { drawCard, playCard, initGame, addDrawnCardToHand, addDrawnCardToTarget, startNextRound, endTurn, findBestCardToPlay, getBestGoldenCardValue, handleGambleChoice } from '../services/gameService';
@@ -11,7 +11,7 @@ import PremiumModal from './PremiumModal';
 import SpecialGameModal from './SpecialGameModal';
 import TokenAnimation from './TokenAnimation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { resumeAudio } from '../utils/sound';
+import { resumeAudio, playSound } from '../utils/sound';
 import { ChevronUp, ChevronDown, Users, User, BookOpen, Star, Palette, X, Sparkles, LogIn, LogOut, Gamepad2, Crown, Coins, RefreshCw, MessageCircle } from 'lucide-react';
 import { io } from 'socket.io-client';
 
@@ -102,6 +102,10 @@ const Game: React.FC = () => {
   const [tokenAnimations, setTokenAnimations] = useState<{ id: string, amount: number, x: number, y: number, reason: string }[]>([]);
   const [localTokens, setLocalTokens] = useState(0);
   const { updateProfile } = useAuth();
+
+  const handleTokenAnimationComplete = useCallback((id: string) => {
+    setTokenAnimations(prev => prev.filter(a => a.id !== id));
+  }, []);
 
   const handleTokenReward = (amount: number, reason: string, x?: number, y?: number) => {
     const startX = x || window.innerWidth / 2;
@@ -333,18 +337,21 @@ const Game: React.FC = () => {
         }, 1000);
       } else if (drawnCard) {
         timer = setTimeout(() => {
-          playSound('play');
           setGameState(prevState => {
             if (prevState.pendingGambleDecision) {
+              playSound('play');
               const choice = Math.random() < 0.3 ? 'negative' : 'positive';
               return handleGambleChoice(prevState, prevState.drawnCard!.id, choice);
             } else if (prevState.pendingTargetDecision) {
               // AI sometimes adds to target number to lift opponent's limit or change target
               if (Math.random() < 0.3) {
+                playSound('target');
                 return addDrawnCardToTarget(prevState);
               }
+              playSound('play');
               return addDrawnCardToHand(prevState);
             } else {
+              playSound('play');
               return addDrawnCardToHand(prevState);
             }
           });
@@ -705,7 +712,7 @@ const Game: React.FC = () => {
       {/* Center Area */}
       <div className="w-full flex items-center justify-between px-2">
         {/* Deck Area */}
-        <div className="flex flex-col items-center gap-1">
+        <div className="flex flex-col items-center gap-1 relative z-20">
           <button onClick={handleDrawCard} className="relative w-10 h-14 md:w-14 md:h-20" disabled={hasDrawnCardThisTurn || activePlayerIndex !== playerIndex}>
             <div className="absolute top-0 left-0 w-full h-full rounded-lg border-2 border-[var(--theme-600)] transform -rotate-6" style={{ backgroundColor: 'var(--theme-800)' }}></div>
             <div className="absolute top-0 left-0 w-full h-full rounded-lg border-2 border-[var(--theme-600)] transform rotate-6" style={{ backgroundColor: 'var(--theme-800)' }}></div>
@@ -941,7 +948,7 @@ const Game: React.FC = () => {
                 <div className="flex gap-2 p-2 rounded-lg border-2 border-[var(--theme-700)] shadow-xl" style={{ backgroundColor: 'var(--theme-900)' }}>
                   <button 
                     onClick={() => {
-                      playSound('play');
+                      playSound('target');
                       if (isPvP) {
                         sendAction({ type: 'addDrawnCardToTarget' });
                       } else {
@@ -954,7 +961,7 @@ const Game: React.FC = () => {
                   </button>
                   <button 
                     onClick={() => {
-                      playSound('play');
+                      playSound('draw');
                       if (isPvP) {
                         sendAction({ type: 'addDrawnCardToHand' });
                       } else {
@@ -1218,7 +1225,7 @@ const Game: React.FC = () => {
                     The Goal & Turns
                   </h3>
                   <p>Reach the exact target number shown in the center bubble.</p>
-                  <p className="mt-2">On your turn, you must draw a card. Then you can play up to 2 cards.</p>
+                  <p className="mt-2">On your turn, you must draw a card. Then you can play up to 2 cards (or 3 if you complete a 1-2-3 cycle).</p>
                 </section>
 
                 <section>
@@ -1230,14 +1237,14 @@ const Game: React.FC = () => {
                     <div className="bg-theme-800/50 p-3 rounded-lg border border-theme-700">
                       <h4 className="font-bold text-theme-200 mb-1">Mandatory Mode (Standard)</h4>
                       <p className="text-xs text-theme-300">
-                        You <strong>MUST</strong> play at least one card if you have a valid move available. You cannot skip your turn if you are able to play. You can play up to 2 cards maximum.
+                        You <strong>MUST</strong> play at least one card if you have a valid move available. You cannot skip your turn if you are able to play. You can play up to 2 cards maximum (or 3 if you complete a 1-2-3 cycle).
                       </p>
                     </div>
                     
                     <div className="bg-theme-800/50 p-3 rounded-lg border border-theme-700">
                       <h4 className="font-bold text-theme-200 mb-1">Strategic Mode</h4>
                       <p className="text-xs text-theme-300">
-                        Playing cards is <strong>optional</strong>. You can choose to play 0, 1, or 2 cards on your turn. You can end your turn without playing any cards to save them for later, even if you have valid moves.
+                        Playing cards is <strong>optional</strong>. You can choose to play 0, 1, or 2 cards on your turn (up to 3 if you complete a 1-2-3 cycle). You can end your turn without playing any cards to save them for later, even if you have valid moves.
                       </p>
                     </div>
                   </div>
@@ -1292,9 +1299,14 @@ const Game: React.FC = () => {
                     </div>
                   </div>
 
-                  <p className="mt-3 text-amber-300/90 text-xs bg-amber-900/20 p-2 rounded border border-amber-700/30">
-                    <strong>Note:</strong> Once you play a high card, you must repeat the cycle and play at least one of each of the 1, 2, and 3 before you can add another high card.
-                  </p>
+                  <div className="mt-3 text-amber-300/90 text-xs bg-amber-900/20 p-3 rounded border border-amber-700/30 space-y-2">
+                    <p><strong>Playing High Cards:</strong> When you complete the 1-2-3 cycle, you earn the right to add up to <strong>two high cards</strong> to your row.</p>
+                    <ul className="list-disc pl-4 space-y-1">
+                      <li>You can place these two high cards whenever you please, even if you continue playing 1s, 2s, and 3s first.</li>
+                      <li><strong>Consecutive Rule:</strong> The two high cards must be played consecutively. If you play one high card, and then play a 1, 2, or 3 instead of your second high card, you lose the second high card and must complete the 1-2-3 cycle again.</li>
+                      <li><strong>Bonus Plays:</strong> During the specific turn in which you complete the 1-2-3 cycle, you can add up to <strong>three cards</strong> to your row instead of the usual two!</li>
+                    </ul>
+                  </div>
                 </section>
 
                 <section>
@@ -1808,7 +1820,7 @@ const Game: React.FC = () => {
           startX={anim.x}
           startY={anim.y}
           reason={anim.reason}
-          onComplete={(id) => setTokenAnimations(prev => prev.filter(a => a.id !== id))}
+          onComplete={handleTokenAnimationComplete}
         />
       ))}
     </div>
