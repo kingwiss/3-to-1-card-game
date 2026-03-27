@@ -3,6 +3,7 @@ import Game from './components/Game';
 import { GameProvider } from './contexts/GameContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import ErrorBoundary from './components/ErrorBoundary';
+import TokenInfoModal from './components/TokenInfoModal';
 
 const AppContent: React.FC = () => {
   const { loading } = useAuth();
@@ -19,6 +20,7 @@ const AppContent: React.FC = () => {
     <ErrorBoundary>
       <GameProvider>
         <Game />
+        <TokenInfoModal />
       </GameProvider>
     </ErrorBoundary>
   );

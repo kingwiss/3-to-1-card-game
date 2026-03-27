@@ -157,7 +157,7 @@ const SpecialGameModal: React.FC<SpecialGameModalProps> = ({ isOpen, onClose, on
                       : 'bg-slate-700 cursor-not-allowed'
                   }`}
                 >
-                  {isPremium ? 'Play Game' : (canPlay ? 'Play Free Game' : 'No Plays Left')}
+                  {isPremium ? 'Play Game' : (canPlay ? 'Play Special Cards Game' : 'No Plays Left')}
                 </button>
               </div>
             </div>
