@@ -15,6 +15,7 @@ interface GameContextProps {
   startMatchmaking: (isStrategicMode: boolean, gameMode: 'normal' | 'special') => Promise<void>;
   cancelMatchmaking: () => void;
   disconnectPvP: () => void;
+  conn: DataConnection | null;
 }
 
 export const GameContext = createContext<GameContextProps | undefined>(undefined);
@@ -37,11 +38,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [isHost, setIsHost] = useState(false);
   const [cancelSearch, setCancelSearch] = useState<(() => void) | null>(null);
 
-  useEffect(() => {
-    if (!gameState.round || gameState.players.some(p => p.persistentScore === undefined)) {
-      setGameState(initGame());
-    }
-  }, []);
+  // Removed redundant initGame call
 
   const cleanupPeer = useCallback(() => {
     if (conn) {
@@ -178,7 +175,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     connection.close();
                     clientPeer.destroy();
                     resolve('NEXT');
-                  }, 500); // Fast timeout for scanning
+                  }, 2000); // Increased timeout for better reliability
 
                   connection.on('open', () => {
                     clearTimeout(timeout);
@@ -347,7 +344,8 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       playerIndex,
       startMatchmaking,
       cancelMatchmaking,
-      disconnectPvP
+      disconnectPvP,
+      conn
     }}>
       {children}
     </GameContext.Provider>

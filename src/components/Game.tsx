@@ -12,7 +12,7 @@ import SpecialGameModal from './SpecialGameModal';
 import TokenAnimation from './TokenAnimation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { resumeAudio, playSound } from '../utils/sound';
-import { ChevronUp, ChevronDown, Users, User, BookOpen, Star, Palette, X, Sparkles, LogIn, LogOut, Gamepad2, Crown, Coins, RefreshCw, MessageCircle } from 'lucide-react';
+import { ChevronUp, ChevronDown, Users, User, BookOpen, Star, Palette, X, Sparkles, LogIn, LogOut, Gamepad2, Crown, Coins, RefreshCw, MessageCircle, MessageSquare } from 'lucide-react';
 import { io } from 'socket.io-client';
 
 const ColorButton = ({ color, index, angle, themeColor, setThemeColor, isPremium }: any) => {
@@ -64,7 +64,7 @@ const Game: React.FC = () => {
     document.addEventListener('click', handleInteraction);
     return () => document.removeEventListener('click', handleInteraction);
   }, []);
-  const { gameState, setGameState, sendAction, isPvP, setIsPvP, isWaiting, matchmakingStatus, playerIndex, startMatchmaking, cancelMatchmaking, disconnectPvP } = useGame();
+  const { gameState, setGameState, sendAction, isPvP, setIsPvP, isWaiting, matchmakingStatus, playerIndex, startMatchmaking, cancelMatchmaking, disconnectPvP, conn } = useGame();
   const { user, userProfile } = useAuth();
   const [isHandExpanded, setIsHandExpanded] = useState(false);
   const [isPlayerRowExpanded, setIsPlayerRowExpanded] = useState(false);
@@ -342,7 +342,11 @@ const Game: React.FC = () => {
   };
 
   useEffect(() => {
-    if (!isPvP && activePlayerIndex === 1 && status === 'playing') {
+    console.log("Game component mounted. isPvP:", isPvP, "conn:", conn);
+  }, [isPvP, conn]);
+
+  useEffect(() => {
+    if (!isPvP && !conn && activePlayerIndex === 1 && status === 'playing') {
       let timer: NodeJS.Timeout;
 
       if (!hasDrawnCardThisTurn) {
@@ -568,6 +572,23 @@ const Game: React.FC = () => {
             )}
           </button>
           
+          <button 
+            onClick={() => {
+              if (isPvP) {
+                if (window.confirm("Disconnect from current game?")) {
+                  disconnectPvP();
+                }
+              } else {
+                startMatchmaking(gameState.isStrategicMode, gameState.gameMode);
+              }
+            }}
+            className="mt-[30px] w-10 h-10 border border-theme-700 rounded-full flex items-center justify-center text-white hover:scale-110 transition-all shadow-lg"
+            style={{ background: 'linear-gradient(135deg, #14b8a6 0%, #0f766e 40%, #1e3a8a 100%)' }}
+            title={isPvP ? 'Disconnect' : 'Play vs Real User'}
+          >
+            {isPvP ? <Users size={20} /> : <Users size={20} />}
+          </button>
+          
           {isProfileMenuOpen && (
             <div className="relative z-40 mt-2 w-48 bg-slate-800 border border-slate-700 rounded-xl shadow-xl overflow-hidden flex flex-col">
               <div className="px-4 py-3 border-b border-slate-700">
@@ -675,10 +696,10 @@ const Game: React.FC = () => {
             {isPvP && (
               <button
                 onClick={() => setIsChatOpen(true)}
-                className="ml-2 p-2 rounded-full bg-gradient-to-br from-theme-600 to-theme-800 text-white shadow-lg shadow-black/20 hover:shadow-theme-600/50 transition-all duration-300 relative"
+                className="ml-2 px-3 py-1 rounded-full bg-gradient-to-br from-blue-500/70 to-teal-500/70 text-white shadow-[0_0_10px_rgba(20,184,166,0.5)] backdrop-blur-sm hover:shadow-[0_0_20px_rgba(20,184,166,0.8)] transition-all duration-300 relative flex items-center gap-1 text-xs font-bold"
                 title="Chat with opponent"
               >
-                <MessageCircle size={18} />
+                Chat
                 {unreadCount > 0 && (
                   <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center font-bold">
                     {unreadCount}
@@ -1183,24 +1204,6 @@ const Game: React.FC = () => {
               >
                 <BookOpen size={20} />
               </button>
-              
-              <button 
-                onClick={() => {
-                  if (isPvP) {
-                    if (window.confirm("Disconnect from current game?")) {
-                      disconnectPvP();
-                    }
-                  } else {
-                    startMatchmaking(gameState.isStrategicMode, gameState.gameMode);
-                  }
-                  setIsMenuOpen(false);
-                }}
-                className="w-12 h-12 border border-theme-700 rounded-full flex items-center justify-center text-white hover:scale-110 transition-all shadow-lg"
-                style={{ background: 'linear-gradient(135deg, #14b8a6 0%, #0f766e 40%, #1e3a8a 100%)' }}
-                title={isPvP ? 'Disconnect' : 'Play vs Real User'}
-              >
-                {isPvP ? <Users size={20} /> : <User size={20} />}
-              </button>
             </motion.div>
           )}
         </AnimatePresence>
@@ -1615,7 +1618,7 @@ const Game: React.FC = () => {
             >
               <div className="p-4 border-b border-theme-700 flex justify-between items-center bg-theme-800/50">
                 <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                  <MessageCircle size={20} className="text-theme-400" />
+                  <MessageSquare size={20} className="text-theme-400" />
                   Chat with {opponent.name || 'Opponent'}
                 </h3>
                 <button 

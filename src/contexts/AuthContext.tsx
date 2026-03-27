@@ -58,7 +58,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         return currentLoading;
       });
-    }, 8000); // 8 seconds timeout
+    }, 2000); // Reduced to 2 seconds
 
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -90,7 +90,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         return currentLoading;
       });
-    }, 5000);
+    }, 1000); // Reduced to 1 second
 
     const unsubscribe = onSnapshot(docRef, async (docSnap) => {
       clearTimeout(profileLoadingTimeout);
@@ -121,6 +121,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             specialGameResetDate: Date.now() 
           }, { merge: true }).catch(console.error);
         }
+
+        // Check subscription status only if not premium
+        if (!currentProfile.isPremium) {
+            checkSubscription(user.email || '', docRef);
+        }
       } else {
         // Create new profile
         const newProfile: UserProfile = {
@@ -141,6 +146,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         try {
           await setDoc(docRef, newProfile);
+          // Check subscription status for new user
+          checkSubscription(user.email || '', docRef);
         } catch (e) {
           console.error('Error creating profile:', e);
         }
@@ -151,10 +158,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(false);
     });
 
-    // Check subscription status
-    const checkSubscription = async () => {
+    // Check subscription status helper
+    async function checkSubscription(email: string, docRef: any) {
       try {
-        const response = await fetch(`/api/subscription-status?email=${encodeURIComponent(user.email || '')}`);
+        const response = await fetch(`/api/subscription-status?email=${encodeURIComponent(email)}`);
         if (response.ok) {
           const data = await response.json();
           if (data.isPremium) {
@@ -164,8 +171,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } catch (error) {
         console.error("Error checking subscription status:", error);
       }
-    };
-    checkSubscription();
+    }
 
     return () => unsubscribe();
   }, [user]);
