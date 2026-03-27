@@ -312,9 +312,9 @@ const Game: React.FC = () => {
 
   const handleRestart = () => {
     if (isPvP) {
-      sendAction({ type: 'restartGame' });
+      startMatchmaking(gameState.isStrategicMode, gameState.gameMode);
     } else {
-      setGameState(initGame(gameState.isStrategicMode));
+      setGameState(initGame(gameState.isStrategicMode, gameState.gameMode));
     }
   };
 
@@ -472,7 +472,8 @@ const Game: React.FC = () => {
     let timer: NodeJS.Timeout;
     const isMyTurn = activePlayerIndex === playerIndex;
 
-    if (isMyTurn && !drawnCard && !pendingTargetDecision && status === 'playing') {
+    // Only start the 10s timer if the user has already drawn a card this turn
+    if (isMyTurn && hasDrawnCardThisTurn && !drawnCard && !pendingTargetDecision && !pendingGambleDecision && status === 'playing') {
       timer = setTimeout(() => {
         // Auto-play logic for 10s rule
         const currentPlayer = players[activePlayerIndex];
@@ -487,13 +488,9 @@ const Game: React.FC = () => {
              sendAction({ type: 'forcePlayCard', cardId: bestCard.id, selectedValue });
            } else {
              setGameState(prevState => {
-               let stateToPlay = prevState;
-               if (!stateToPlay.hasDrawnCardThisTurn) {
-                 stateToPlay = { ...stateToPlay, hasDrawnCardThisTurn: true };
-               }
-               const newState = playCard(stateToPlay, bestCard.id, selectedValue);
-               if (newState === stateToPlay) {
-                 return endTurn(stateToPlay);
+               const newState = playCard(prevState, bestCard.id, selectedValue);
+               if (newState === prevState) {
+                 return endTurn(prevState);
                }
                return newState;
              });
@@ -508,7 +505,7 @@ const Game: React.FC = () => {
       }, 10000);
     }
     return () => clearTimeout(timer);
-  }, [activePlayerIndex, hasDrawnCardThisTurn, drawnCard, pendingTargetDecision, status, isPvP, playerIndex, sendAction, players, targetNumber]);
+  }, [activePlayerIndex, hasDrawnCardThisTurn, drawnCard, pendingTargetDecision, pendingGambleDecision, status, isPvP, playerIndex, sendAction, players, targetNumber]);
 
   if (isWaiting) {
     return (

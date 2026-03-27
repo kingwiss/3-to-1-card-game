@@ -284,13 +284,9 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           case "gambleChoice": newState = handleGambleChoice(newState, action.cardId, action.choice); break;
           case "playCard": newState = playCard(newState, action.cardId, action.selectedValue); break;
           case "forcePlayCard": {
-            let stateToPlay = newState;
-            if (!stateToPlay.hasDrawnCardThisTurn) {
-              stateToPlay = { ...stateToPlay, hasDrawnCardThisTurn: true };
-            }
-            const nextState = playCard(stateToPlay, action.cardId, action.selectedValue);
-            if (nextState === stateToPlay) {
-              newState = endTurn(stateToPlay);
+            const nextState = playCard(newState, action.cardId, action.selectedValue);
+            if (nextState === newState) {
+              newState = endTurn(newState);
             } else {
               newState = nextState;
             }
@@ -301,15 +297,6 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           case "syncName":
             newState.players[action.playerIndex].name = action.name;
             break;
-          case "restartGame": {
-            const p1Name = newState.players[0].name;
-            const p2Name = newState.players[1].name;
-            newState = initGame(newState.isStrategicMode);
-            newState.players[0].name = p1Name;
-            newState.players[1].name = p2Name;
-            newState.mode = "multiplayer";
-            break;
-          }
           case "toggleStrategicMode": {
             const p1Name = newState.players[0].name;
             const p2Name = newState.players[1].name;
