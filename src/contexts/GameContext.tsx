@@ -81,8 +81,9 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setCancelSearch(() => cancel);
 
     try {
-      // PeerJS is now imported statically
-      const PeerClass = Peer;
+      // Dynamically import PeerJS to avoid Vite module resolution issues
+      const PeerModule = await import('peerjs');
+      const PeerClass = PeerModule.default || (PeerModule as any).Peer;
       
       const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 

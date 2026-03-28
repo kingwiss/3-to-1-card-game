@@ -94,9 +94,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const unsubscribe = onSnapshot(docRef, async (docSnap) => {
       clearTimeout(profileLoadingTimeout);
+      
+      // Load local profile as fallback
+      const localProfileStr = localStorage.getItem(`userProfile_${user.uid}`);
+      const localProfile = localProfileStr ? JSON.parse(localProfileStr) : null;
+
       if (docSnap.exists()) {
         const data = docSnap.data();
-        const currentProfile: UserProfile = {
+        let currentProfile: UserProfile = {
           uid: data.uid || user.uid,
           displayName: data.displayName || user.displayName || 'Player',
           photoURL: data.photoURL || user.photoURL || '',
@@ -108,6 +113,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           specialGamesPlayedThisWeek: data.specialGamesPlayedThisWeek || 0,
           specialGameResetDate: data.specialGameResetDate || Date.now(),
         };
+        
+        // If local profile has more games played, it's more up-to-date (likely due to failed Firestore writes)
+        if (localProfile && localProfile.gamesPlayed > currentProfile.gamesPlayed) {
+          currentProfile = { ...currentProfile, ...localProfile };
+          // Attempt to sync back to Firestore
+          setDoc(docRef, currentProfile, { merge: true }).catch(console.error);
+        } else {
+          // Update local storage with fresh Firestore data
+          localStorage.setItem(`userProfile_${user.uid}`, JSON.stringify(currentProfile));
+        }
         
         setUserProfile(currentProfile);
         setLoading(false);
@@ -127,8 +142,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             checkSubscription(user.email || '', docRef);
         }
       } else {
-        // Create new profile
-        const newProfile: UserProfile = {
+        // Create new profile or use local fallback
+        const newProfile: UserProfile = localProfile || {
           uid: user.uid,
           displayName: user.displayName || 'Player',
           photoURL: user.photoURL || '',
@@ -141,6 +156,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           specialGameResetDate: Date.now(),
         };
         
+        localStorage.setItem(`userProfile_${user.uid}`, JSON.stringify(newProfile));
         setUserProfile(newProfile);
         setLoading(false);
         
@@ -178,6 +194,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const updateProfile = async (data: Partial<UserProfile>) => {
     if (!user) return;
+    
+    // Optimistically update local state and localStorage
+    setUserProfile(prev => {
+      const newProfile = prev ? { ...prev, ...data } : null;
+      if (newProfile) {
+        localStorage.setItem(`userProfile_${user.uid}`, JSON.stringify(newProfile));
+      }
+      return newProfile;
+    });
+
     try {
       const docRef = doc(db, 'users', user.uid);
       await setDoc(docRef, data, { merge: true });
@@ -187,7 +213,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await updateFirebaseAuthProfile(user, { displayName: data.displayName });
       }
       
-      setUserProfile(prev => prev ? { ...prev, ...data } : null);
       console.log('Profile updated successfully:', data);
     } catch (error) {
       console.error('Error updating profile:', error);

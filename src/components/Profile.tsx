@@ -13,18 +13,7 @@ const Profile: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
   useEffect(() => {
     setLocalProfile(userProfile);
-    
-    const fetchLatestProfile = async () => {
-      if (user) {
-        const docRef = doc(db, 'users', user.uid);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          setLocalProfile(docSnap.data() as any);
-        }
-      }
-    };
-    fetchLatestProfile();
-  }, [user, userProfile]);
+  }, [userProfile]);
 
   const handleManageSubscription = async () => {
     try {

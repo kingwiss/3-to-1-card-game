@@ -116,6 +116,8 @@ const Game: React.FC = () => {
   const [localSpecialGamesPlayed, setLocalSpecialGamesPlayed] = useState(0);
   const [tokenAnimations, setTokenAnimations] = useState<{ id: string, amount: number, x: number, y: number, reason: string }[]>([]);
   const [localTokens, setLocalTokens] = useState(0);
+  const [showPvPPrompt, setShowPvPPrompt] = useState(false);
+  const timeOnSiteRef = useRef(0);
   const { updateProfile } = useAuth();
 
   const handleTokenAnimationComplete = useCallback((id: string) => {
@@ -208,6 +210,42 @@ const Game: React.FC = () => {
   useEffect(() => {
     document.body.className = `theme-${themeColor}`;
   }, [themeColor]);
+
+  // Handle PvP prompt logic
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    
+    // Only show prompt if not currently in a PvP game and not waiting for matchmaking
+    if (!isPvP && !isWaiting) {
+      interval = setInterval(() => {
+        timeOnSiteRef.current += 10; // Increment by 10 seconds
+        
+        // Logic for prompt frequency:
+        // First 2 minutes (120s): show every 30 seconds
+        // After 2 minutes: show every 2 minutes (120s)
+        const time = timeOnSiteRef.current;
+        let shouldShow = false;
+        
+        if (time <= 120) {
+          shouldShow = time % 30 === 0;
+        } else {
+          shouldShow = time % 120 === 0;
+        }
+        
+        if (shouldShow) {
+          setShowPvPPrompt(true);
+          // Hide after 5 seconds
+          setTimeout(() => {
+            setShowPvPPrompt(false);
+          }, 5000);
+        }
+      }, 10000); // Check every 10 seconds
+    }
+    
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isPvP, isWaiting]);
 
   useEffect(() => {
     const handleEditorPremium = () => {
@@ -574,23 +612,6 @@ const Game: React.FC = () => {
             )}
           </button>
           
-          <button 
-            onClick={() => {
-              if (isPvP) {
-                if (window.confirm("Disconnect from current game?")) {
-                  disconnectPvP();
-                }
-              } else {
-                startMatchmaking(gameState.isStrategicMode, gameState.gameMode);
-              }
-            }}
-            className="mt-[30px] w-10 h-10 border border-theme-700 rounded-full flex items-center justify-center text-white hover:scale-110 transition-all shadow-lg"
-            style={{ background: 'linear-gradient(135deg, #14b8a6 0%, #0f766e 40%, #1e3a8a 100%)' }}
-            title={isPvP ? 'Disconnect' : 'Play vs Real User'}
-          >
-            {isPvP ? <Users size={20} /> : <Users size={20} />}
-          </button>
-          
           {isProfileMenuOpen && (
             <div className="relative z-40 mt-2 w-48 bg-slate-800 border border-slate-700 rounded-xl shadow-xl overflow-hidden flex flex-col">
               <div className="px-4 py-3 border-b border-slate-700">
@@ -635,6 +656,41 @@ const Game: React.FC = () => {
           </button>
         </div>
       )}
+
+      {/* PvP Button (Always visible) */}
+      <div className="absolute top-[86px] right-4 z-30 flex flex-col items-end">
+        <div className="relative">
+          <AnimatePresence>
+            {showPvPPrompt && !isPvP && !isWaiting && (
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 10 }}
+                className="absolute right-14 top-1/2 -translate-y-1/2 bg-theme-800 text-theme-100 text-xs font-medium py-1.5 px-3 rounded-lg shadow-lg whitespace-nowrap border border-theme-600 flex items-center gap-2 pointer-events-none"
+              >
+                Play against the role player
+                <div className="absolute right-[-6px] top-1/2 -translate-y-1/2 w-0 h-0 border-t-[6px] border-t-transparent border-l-[6px] border-l-theme-600 border-b-[6px] border-b-transparent"></div>
+                <div className="absolute right-[-4px] top-1/2 -translate-y-1/2 w-0 h-0 border-t-[4px] border-t-transparent border-l-[4px] border-l-theme-800 border-b-[4px] border-b-transparent"></div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+          <button 
+            onClick={() => {
+              if (isPvP) {
+                if (window.confirm("Disconnect from current game?")) {
+                  disconnectPvP();
+                }
+              } else {
+                startMatchmaking(gameState.isStrategicMode, gameState.gameMode);
+              }
+            }}
+            className="w-10 h-10 border-2 border-theme-600 bg-theme-800 rounded-full flex items-center justify-center text-theme-200 hover:text-white hover:bg-theme-700 hover:scale-110 transition-all shadow-lg"
+            title={isPvP ? 'Disconnect' : 'Play vs Real User'}
+          >
+            {isPvP ? <Users size={20} /> : <Users size={20} />}
+          </button>
+        </div>
+      </div>
 
       {(status === 'roundOver' || status === 'gameOver') && (
         <div className="absolute inset-0 bg-black/80 flex items-center justify-center z-50">

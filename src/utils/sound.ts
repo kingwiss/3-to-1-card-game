@@ -40,7 +40,7 @@ export const playSound = (type: 'draw' | 'play' | 'target' | 'sabotage' | 'limit
     osc.type = 'sine';
     osc.frequency.setValueAtTime(250, now);
     osc.frequency.exponentialRampToValueAtTime(300, now + 0.08);
-    gainNode.gain.setValueAtTime(0.2, now);
+    gainNode.gain.setValueAtTime(0.5, now);
     gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
     osc.start(now);
     osc.stop(now + 0.08);
@@ -49,7 +49,7 @@ export const playSound = (type: 'draw' | 'play' | 'target' | 'sabotage' | 'limit
     osc.type = 'triangle';
     osc.frequency.setValueAtTime(350, now);
     osc.frequency.exponentialRampToValueAtTime(250, now + 0.08);
-    gainNode.gain.setValueAtTime(0.2, now);
+    gainNode.gain.setValueAtTime(0.5, now);
     gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
     osc.start(now);
     osc.stop(now + 0.08);
@@ -58,7 +58,7 @@ export const playSound = (type: 'draw' | 'play' | 'target' | 'sabotage' | 'limit
     osc.type = 'sine';
     osc.frequency.setValueAtTime(450, now);
     osc.frequency.exponentialRampToValueAtTime(550, now + 0.1);
-    gainNode.gain.setValueAtTime(0.2, now);
+    gainNode.gain.setValueAtTime(0.5, now);
     gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
     osc.start(now);
     osc.stop(now + 0.1);
