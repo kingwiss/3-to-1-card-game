@@ -8,6 +8,7 @@ export interface Card {
   permanentValue?: number;
   isGambleRevealed?: boolean;
   gambleChoice?: 'positive' | 'negative';
+  isNegative?: boolean;
 }
 
 export interface Player {

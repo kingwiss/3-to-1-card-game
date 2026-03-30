@@ -72,6 +72,8 @@ const shuffleDeck = (deck: Card[]): Card[] => {
 };
 
 const hasEligibleMoves = (player: Player, targetNumber: number): boolean => {
+  const isSubtracting = player.score > targetNumber;
+
   for (const card of player.hand) {
     // Special card logic for eligibility
     if (card.type === 'golden') return true; // Can always play golden card (assuming player chooses valid number)
@@ -79,29 +81,27 @@ const hasEligibleMoves = (player: Player, targetNumber: number): boolean => {
     if (card.type === 'gamble' && !card.isGambleRevealed) return true; // Can always choose +/- for gamble card
     
     if (card.type === 'gamble' && card.isGambleRevealed && card.gambleChoice === 'positive') {
-       if (player.score + card.value > targetNumber) continue;
+       const effectiveValue = isSubtracting ? -card.value : card.value;
        if (!player.cleanSlate && player.row.length > 0 && player.row[player.row.length - 1].value === card.value) continue;
        if (card.value > 3 && !player.highCardsUnlocked) continue;
        return true;
     }
     
     if (card.type === 'permanent' && card.permanentValue) {
-       if (player.score + card.permanentValue > targetNumber) continue;
+       const effectiveValue = isSubtracting ? -card.permanentValue : card.permanentValue;
        if (!player.cleanSlate && player.row.length > 0 && player.row[player.row.length - 1].value === card.permanentValue) continue;
        return true;
     }
 
     if (card.type === 'sequence' && card.sequence) {
        const seqSum = card.sequence.reduce((a, b) => a + b, 0);
-       if (player.score + seqSum > targetNumber) continue;
+       const effectiveSeqSum = isSubtracting ? -seqSum : seqSum;
        if (!player.cleanSlate && player.row.length > 0 && player.row[player.row.length - 1].value === card.sequence[0]) continue;
        return true;
     }
 
     // Normal card logic
-    if (player.score + card.value > targetNumber) {
-      continue;
-    }
+    const effectiveValue = isSubtracting ? -card.value : card.value;
     if (!player.cleanSlate && player.row.length > 0 && player.row[player.row.length - 1].value === card.value) {
       continue;
     }
@@ -319,13 +319,27 @@ export const handleGambleChoice = (gameState: GameState, cardId: string, choice:
     }
     return newState;
   } else {
+    const isSubtracting = player.score > gameState.targetNumber;
+    
     // Negative choice: must be played immediately to row, bypassing normal restrictions
     newState.logs = [...newState.logs, `${newPlayer.name} chose Negative for a Gamble Card and revealed a ${revealedCard.value}! It is played immediately.`];
     
     // Add to row
-    const newRow = [...newPlayer.row, revealedCard];
-    const newScore = newPlayer.score + revealedCard.value; 
-    const newTargetNumber = newState.targetNumber - revealedCard.value;
+    const playedCard = { ...revealedCard, isNegative: isSubtracting };
+    const newRow = [...newPlayer.row, playedCard];
+    
+    let newScore = newPlayer.score;
+    let newTargetNumber = newState.targetNumber;
+    
+    if (isSubtracting) {
+      newScore = newPlayer.score - revealedCard.value;
+      newTargetNumber = newState.targetNumber + revealedCard.value;
+      newState.logs = [...newState.logs, `The target number is increased by ${revealedCard.value} to ${newTargetNumber}! ${newPlayer.name}'s roll is now ${newScore}.`];
+    } else {
+      newScore = newPlayer.score + revealedCard.value;
+      newTargetNumber = newState.targetNumber - revealedCard.value;
+      newState.logs = [...newState.logs, `The target number is reduced by ${revealedCard.value} to ${newTargetNumber}! ${newPlayer.name}'s roll is now ${newScore}.`];
+    }
     
     // Gamble cards revealed as 1, 2, or 3 now count towards the cycle
     let newUnlockedNumbers = { ...newPlayer.unlockedNumbers };
@@ -384,24 +398,31 @@ export const handleGambleChoice = (gameState: GameState, cardId: string, choice:
     newState.logs.push(`${newPlayer.name} lifted the limit for ${opponent.name} with a negative Gamble Card!`);
 
     newState.targetNumber = newTargetNumber;
-    newState.logs = [...newState.logs, `The target number is reduced by ${revealedCard.value} to ${newTargetNumber}! ${newPlayer.name}'s roll is now ${newScore}.`];
 
     // Check win/loss
-    if (newTargetNumber < newScore) {
-      newState.logs = [...newState.logs, `${newPlayer.name} busted because the target number (${newTargetNumber}) fell below their current roll (${newScore})! They lose the round.`];
+    if (isSubtracting && newTargetNumber > newScore) {
+      newState.logs = [...newState.logs, `${newPlayer.name} busted because the target number (${newTargetNumber}) went above their current roll (${newScore})! They lose the round.`];
       newState.status = 'roundOver';
-      
-      // Opponent wins
-      const opponentIndex = (activePlayerIndex + 1) % newState.players.length;
       const winner = { ...newState.players[opponentIndex] };
       winner.persistentScore += 1;
-      
       const finalPlayers = [...newState.players];
       finalPlayers[opponentIndex] = winner;
       newState.players = finalPlayers;
       newState.winnerId = winner.id;
       return newState;
-    } else if (newScore === newTargetNumber) {
+    } else if (!isSubtracting && newTargetNumber < newScore) {
+      newState.logs = [...newState.logs, `${newPlayer.name} busted because the target number (${newTargetNumber}) fell below their current roll (${newScore})! They lose the round.`];
+      newState.status = 'roundOver';
+      const winner = { ...newState.players[opponentIndex] };
+      winner.persistentScore += 1;
+      const finalPlayers = [...newState.players];
+      finalPlayers[opponentIndex] = winner;
+      newState.players = finalPlayers;
+      newState.winnerId = winner.id;
+      return newState;
+    }
+
+    if (newScore === newTargetNumber) {
       newState.logs = [...newState.logs, `${newPlayer.name} hit the target number exactly! They win the round.`];
       newState.status = 'roundOver';
       newState.winnerId = newPlayer.id;
@@ -431,6 +452,26 @@ export const handleGambleChoice = (gameState: GameState, cardId: string, choice:
   }
 };
 
+const handleBust = (gameState: GameState, newScore: number, targetNumber: number): GameState => {
+  const { players, activePlayerIndex } = gameState;
+  const player = players[activePlayerIndex];
+  const newState = { ...gameState };
+  
+  newState.logs = [...newState.logs, `${player.name} busted because their roll (${newScore}) went past the target number (${targetNumber})! They lose the round.`];
+  newState.status = 'roundOver';
+  
+  // Opponent wins
+  const opponentIndex = (activePlayerIndex + 1) % players.length;
+  const winner = { ...players[opponentIndex] };
+  winner.persistentScore += 1;
+  
+  const finalPlayers = [...players];
+  finalPlayers[opponentIndex] = winner;
+  newState.players = finalPlayers;
+  newState.winnerId = winner.id;
+  return newState;
+};
+
 export const playCard = (gameState: GameState, cardId: string, selectedValue?: number): GameState => {
   const { players, activePlayerIndex, targetNumber } = gameState;
   if (!gameState.hasDrawnCardThisTurn) return gameState;
@@ -448,9 +489,9 @@ export const playCard = (gameState: GameState, cardId: string, selectedValue?: n
   
   // Gamble Card Logic (Revealed Positive)
   if (card.type === 'gamble' && card.isGambleRevealed && card.gambleChoice === 'positive') {
-    if (player.score + card.value > targetNumber) {
-      return gameState;
-    }
+    const isSubtracting = player.score > targetNumber;
+    const effectiveValue = isSubtracting ? -card.value : card.value;
+
     if (!player.cleanSlate && player.row.length > 0 && player.row[player.row.length - 1].value === card.value) {
       return gameState;
     }
@@ -461,8 +502,9 @@ export const playCard = (gameState: GameState, cardId: string, selectedValue?: n
     const newHand = [...player.hand];
     newHand.splice(cardIndex, 1);
 
-    const newRow = [...player.row, card];
-    const newScore = player.score + card.value;
+    const playedCard = { ...card, isNegative: isSubtracting };
+    const newRow = [...player.row, playedCard];
+    const newScore = player.score + effectiveValue;
 
     // Gamble cards revealed as 1, 2, or 3 now count towards the cycle
     let newUnlockedNumbers = { ...player.unlockedNumbers };
@@ -518,6 +560,12 @@ export const playCard = (gameState: GameState, cardId: string, selectedValue?: n
       newState.pendingReward = { amount: 50, reason: 'cycle_complete' };
     }
 
+    if (isSubtracting && newScore < targetNumber) {
+      return handleBust(newState, newScore, targetNumber);
+    } else if (!isSubtracting && newScore > targetNumber) {
+      return handleBust(newState, newScore, targetNumber);
+    }
+
     if (newScore === targetNumber) {
       newPlayer.persistentScore += 1;
       newState.status = 'roundOver';
@@ -544,18 +592,17 @@ export const playCard = (gameState: GameState, cardId: string, selectedValue?: n
     // "They can add it to their row whenever they want."
     // Golden Card bypasses the consecutive duplicate rule.
     
-    if (player.score + selectedValue > targetNumber) {
-      return gameState;
-    }
+    const isSubtracting = player.score > targetNumber;
+    const effectiveValue = isSubtracting ? -selectedValue : selectedValue;
 
     const newHand = [...player.hand];
     newHand.splice(cardIndex, 1);
 
     // Create a "played" version of the golden card with the selected value
-    const playedCard = { ...card, value: selectedValue };
+    const playedCard = { ...card, value: selectedValue, isNegative: isSubtracting };
     
     const newRow = [...player.row, playedCard];
-    const newScore = player.score + selectedValue;
+    const newScore = player.score + effectiveValue;
     
     // Update cycle tracker if applicable (1, 2, 3)
     let newUnlockedNumbers = { ...player.unlockedNumbers };
@@ -611,6 +658,12 @@ export const playCard = (gameState: GameState, cardId: string, selectedValue?: n
       newState.pendingReward = { amount: 50, reason: 'cycle_complete' };
     }
     
+    if (isSubtracting && newScore < targetNumber) {
+      return handleBust(newState, newScore, targetNumber);
+    } else if (!isSubtracting && newScore > targetNumber) {
+      return handleBust(newState, newScore, targetNumber);
+    }
+
     if (newScore === targetNumber) {
       newPlayer.persistentScore += 1;
       newState.status = 'roundOver';
@@ -627,20 +680,19 @@ export const playCard = (gameState: GameState, cardId: string, selectedValue?: n
 
   if (card.type === 'permanent') {
     const value = card.permanentValue!;
+    const isSubtracting = player.score > targetNumber;
+    const effectiveValue = isSubtracting ? -value : value;
     
     if (!player.cleanSlate && player.row.length > 0 && player.row[player.row.length - 1].value === value) {
-      return gameState;
-    }
-    if (player.score + value > targetNumber) {
       return gameState;
     }
     
     // Permanent card stays in hand!
     // We add a copy to the row.
-    const playedCard = { ...card, id: createId(), value: value }; // New ID for the row instance
+    const playedCard = { ...card, id: createId(), value: value, isNegative: isSubtracting }; // New ID for the row instance
     
     const newRow = [...player.row, playedCard];
-    const newScore = player.score + value;
+    const newScore = player.score + effectiveValue;
     
     let newUnlockedNumbers = { ...player.unlockedNumbers };
     let newHighCardsUnlocked = player.highCardsUnlocked;
@@ -695,6 +747,12 @@ export const playCard = (gameState: GameState, cardId: string, selectedValue?: n
       newState.pendingReward = { amount: 50, reason: 'cycle_complete' };
     }
     
+    if (isSubtracting && newScore < targetNumber) {
+      return handleBust(newState, newScore, targetNumber);
+    } else if (!isSubtracting && newScore > targetNumber) {
+      return handleBust(newState, newScore, targetNumber);
+    }
+
     if (newScore === targetNumber) {
       newPlayer.persistentScore += 1;
       newState.status = 'roundOver';
@@ -714,6 +772,7 @@ export const playCard = (gameState: GameState, cardId: string, selectedValue?: n
 
   if (card.type === 'sequence') {
     const sequence = card.sequence!;
+    const isSubtracting = player.score > targetNumber;
     
     // Check first number against last card
     if (!player.cleanSlate && player.row.length > 0 && player.row[player.row.length - 1].value === sequence[0]) {
@@ -721,17 +780,15 @@ export const playCard = (gameState: GameState, cardId: string, selectedValue?: n
     }
     
     const seqSum = sequence.reduce((a, b) => a + b, 0);
-    if (player.score + seqSum > targetNumber) {
-      return gameState;
-    }
+    const effectiveSeqSum = isSubtracting ? -seqSum : seqSum;
 
     const newHand = [...player.hand];
     newHand.splice(cardIndex, 1);
     
     // Add all cards in sequence to row
-    const cardsToAdd = sequence.map(val => ({ id: createId(), value: val, type: 'number' as const }));
+    const cardsToAdd = sequence.map(val => ({ id: createId(), value: val, type: 'number' as const, isNegative: isSubtracting }));
     const newRow = [...player.row, ...cardsToAdd];
-    const newScore = player.score + seqSum;
+    const newScore = player.score + effectiveSeqSum;
     
     let newUnlockedNumbers = { ...player.unlockedNumbers };
     let newHighCardsUnlocked = player.highCardsUnlocked;
@@ -789,6 +846,12 @@ export const playCard = (gameState: GameState, cardId: string, selectedValue?: n
       newState.pendingReward = { amount: 50, reason: 'cycle_complete' };
     }
     
+    if (isSubtracting && newScore < targetNumber) {
+      return handleBust(newState, newScore, targetNumber);
+    } else if (!isSubtracting && newScore > targetNumber) {
+      return handleBust(newState, newScore, targetNumber);
+    }
+
     if (newScore === targetNumber) {
       newPlayer.persistentScore += 1;
       newState.status = 'roundOver';
@@ -807,6 +870,9 @@ export const playCard = (gameState: GameState, cardId: string, selectedValue?: n
   }
 
   // Normal Card Logic
+  const isSubtracting = player.score > targetNumber;
+  const effectiveValue = isSubtracting ? -card.value : card.value;
+
   if (!player.cleanSlate && player.row.length > 0 && player.row[player.row.length - 1].value === card.value) {
     return gameState;
   }
@@ -815,15 +881,12 @@ export const playCard = (gameState: GameState, cardId: string, selectedValue?: n
     return gameState;
   }
 
-  if (player.score + card.value > targetNumber) {
-    return gameState;
-  }
-
   const newHand = [...player.hand];
   newHand.splice(cardIndex, 1);
 
-  const newRow = [...player.row, card];
-  const newScore = player.score + card.value;
+  const playedCard = { ...card, isNegative: isSubtracting };
+  const newRow = [...player.row, playedCard];
+  const newScore = player.score + effectiveValue;
 
   let newUnlockedNumbers = { ...player.unlockedNumbers };
   let newHighCardsUnlocked = player.highCardsUnlocked;
@@ -878,6 +941,12 @@ export const playCard = (gameState: GameState, cardId: string, selectedValue?: n
     newState.pendingReward = { amount: 50, reason: 'cycle_complete' };
   }
 
+  if (isSubtracting && newScore < targetNumber) {
+    return handleBust(newState, newScore, targetNumber);
+  } else if (!isSubtracting && newScore > targetNumber) {
+    return handleBust(newState, newScore, targetNumber);
+  }
+
   if (newScore === targetNumber) {
     newPlayer.persistentScore += 1;
     newState.status = 'roundOver';
@@ -899,34 +968,48 @@ export const playCard = (gameState: GameState, cardId: string, selectedValue?: n
 export const findBestCardToPlay = (player: Player, targetNumber: number): Card | null => {
   const { hand, row, unlockedNumbers, highCardsUnlocked, score } = player;
   const lastCardInRow = row.length > 0 ? row[row.length - 1] : null;
+  const isSubtracting = score > targetNumber;
 
   const isValidCard = (c: Card) => {
     if (c.type === 'golden') {
       // AI can play golden card if at least value 1 fits
-      return score + 1 <= targetNumber;
+      const effectiveValue = isSubtracting ? -1 : 1;
+      if (isSubtracting) {
+        return score + effectiveValue >= targetNumber;
+      } else {
+        return score + effectiveValue <= targetNumber;
+      }
     }
 
     if (c.type === 'gamble' && c.isGambleRevealed && c.gambleChoice === 'positive') {
-       if (score + c.value > targetNumber) return false;
+       const effectiveValue = isSubtracting ? -c.value : c.value;
+       if (isSubtracting && score + effectiveValue < targetNumber) return false;
+       if (!isSubtracting && score + effectiveValue > targetNumber) return false;
        if (!player.cleanSlate && lastCardInRow && lastCardInRow.value === c.value) return false;
        if (c.value > 3 && !highCardsUnlocked) return false;
        return true;
     }
     
     if (c.type === 'permanent' && c.permanentValue) {
-       if (score + c.permanentValue > targetNumber) return false;
+       const effectiveValue = isSubtracting ? -c.permanentValue : c.permanentValue;
+       if (isSubtracting && score + effectiveValue < targetNumber) return false;
+       if (!isSubtracting && score + effectiveValue > targetNumber) return false;
        if (!player.cleanSlate && lastCardInRow && lastCardInRow.value === c.permanentValue) return false;
        return true;
     }
 
     if (c.type === 'sequence' && c.sequence) {
        const seqSum = c.sequence.reduce((a, b) => a + b, 0);
-       if (score + seqSum > targetNumber) return false;
+       const effectiveSeqSum = isSubtracting ? -seqSum : seqSum;
+       if (isSubtracting && score + effectiveSeqSum < targetNumber) return false;
+       if (!isSubtracting && score + effectiveSeqSum > targetNumber) return false;
        if (!player.cleanSlate && lastCardInRow && lastCardInRow.value === c.sequence[0]) return false;
        return true;
     }
 
-    if (score + c.value > targetNumber) return false;
+    const effectiveValue = isSubtracting ? -c.value : c.value;
+    if (isSubtracting && score + effectiveValue < targetNumber) return false;
+    if (!isSubtracting && score + effectiveValue > targetNumber) return false;
     if (!player.cleanSlate && lastCardInRow && lastCardInRow.value === c.value) return false;
     if (c.value > 3 && !highCardsUnlocked) return false;
     return true;

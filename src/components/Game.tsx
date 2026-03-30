@@ -531,8 +531,8 @@ const Game: React.FC = () => {
     let timer: NodeJS.Timeout;
     const isMyTurn = activePlayerIndex === playerIndex;
 
-    // Only start the 10s timer if the user has already drawn a card this turn
-    if (isMyTurn && hasDrawnCardThisTurn && !drawnCard && !pendingTargetDecision && !pendingGambleDecision && status === 'playing') {
+    // Only start the 10s timer if the user has already drawn a card this turn and it's not strategic mode
+    if (!gameState.isStrategicMode && isMyTurn && hasDrawnCardThisTurn && !drawnCard && !pendingTargetDecision && !pendingGambleDecision && status === 'playing') {
       timer = setTimeout(() => {
         // Auto-play logic for 10s rule
         const currentPlayer = players[activePlayerIndex];
@@ -564,7 +564,7 @@ const Game: React.FC = () => {
       }, 10000);
     }
     return () => clearTimeout(timer);
-  }, [activePlayerIndex, hasDrawnCardThisTurn, drawnCard, pendingTargetDecision, pendingGambleDecision, status, isPvP, playerIndex, sendAction, players, targetNumber]);
+  }, [activePlayerIndex, hasDrawnCardThisTurn, drawnCard, pendingTargetDecision, pendingGambleDecision, status, isPvP, playerIndex, sendAction, players, targetNumber, gameState.isStrategicMode]);
 
   if (isWaiting) {
     return (
@@ -658,7 +658,7 @@ const Game: React.FC = () => {
       )}
 
       {/* PvP Button (Always visible) */}
-      <div className="absolute top-[86px] right-4 z-30 flex flex-col items-end">
+      <div className="absolute top-[120px] right-4 z-30 flex flex-col items-end">
         <div className="relative">
           <AnimatePresence>
             {showPvPPrompt && !isPvP && !isWaiting && (
@@ -666,11 +666,11 @@ const Game: React.FC = () => {
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 10 }}
-                className="absolute right-14 top-1/2 -translate-y-1/2 bg-theme-800 text-theme-100 text-xs font-medium py-1.5 px-3 rounded-lg shadow-lg whitespace-nowrap border border-theme-600 flex items-center gap-2 pointer-events-none"
+                className="absolute right-14 top-1/2 -translate-y-1/2 bg-[var(--theme-800)] text-white text-sm font-bold py-2 px-4 rounded-lg shadow-xl whitespace-nowrap border border-[var(--theme-600)] flex items-center gap-2 pointer-events-none"
               >
-                Play against the role player
-                <div className="absolute right-[-6px] top-1/2 -translate-y-1/2 w-0 h-0 border-t-[6px] border-t-transparent border-l-[6px] border-l-theme-600 border-b-[6px] border-b-transparent"></div>
-                <div className="absolute right-[-4px] top-1/2 -translate-y-1/2 w-0 h-0 border-t-[4px] border-t-transparent border-l-[4px] border-l-theme-800 border-b-[4px] border-b-transparent"></div>
+                Play vs Real Player
+                <div className="absolute right-[-6px] top-1/2 -translate-y-1/2 w-0 h-0 border-t-[6px] border-t-transparent border-l-[6px] border-l-[var(--theme-600)] border-b-[6px] border-b-transparent"></div>
+                <div className="absolute right-[-4px] top-1/2 -translate-y-1/2 w-0 h-0 border-t-[4px] border-t-transparent border-l-[4px] border-l-[var(--theme-800)] border-b-[4px] border-b-transparent"></div>
               </motion.div>
             )}
           </AnimatePresence>
@@ -684,8 +684,17 @@ const Game: React.FC = () => {
                 startMatchmaking(gameState.isStrategicMode, gameState.gameMode);
               }
             }}
-            className="w-10 h-10 border-2 border-theme-600 bg-theme-800 rounded-full flex items-center justify-center text-theme-200 hover:text-white hover:bg-theme-700 hover:scale-110 transition-all shadow-lg"
-            title={isPvP ? 'Disconnect' : 'Play vs Real User'}
+            className="w-10 h-10 border-2 border-[var(--theme-600)] rounded-full flex items-center justify-center text-white hover:scale-110 transition-all shadow-lg"
+            style={{ 
+              background: themeColor === 'cyan' 
+                ? 'linear-gradient(135deg, #0891b2 0%, #0e7490 100%)' 
+                : themeColor === 'slate'
+                  ? 'linear-gradient(135deg, #475569 0%, #334155 100%)'
+                  : themeColor === 'teal-gray'
+                    ? 'linear-gradient(135deg, #0d9488 0%, #334155 100%)'
+                    : 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)'
+            }}
+            title={isPvP ? 'Disconnect' : 'Play vs Real Player'}
           >
             {isPvP ? <Users size={20} /> : <Users size={20} />}
           </button>
@@ -744,17 +753,17 @@ const Game: React.FC = () => {
       </button>
 
       {/* Opponent Area */}
-      <div className="w-full flex flex-col items-center gap-1 pt-12">
+      <div className="w-full flex flex-col items-center gap-1 pt-20">
         <div className="flex justify-between w-full px-4 items-center">
-          <div className="text-base font-bold flex items-center gap-2">
-            {opponent.name || 'Opponent'}
+          <div className="text-base font-bold flex items-center gap-2 flex-1 min-w-0">
+            <span className="truncate">{opponent.name || 'Opponent'}</span>
             {opponent.cleanSlate && (
-              <span className="text-[10px] bg-theme-500/80 text-white px-1.5 py-0.5 rounded-full whitespace-nowrap">Clean Slate</span>
+              <span className="text-[10px] bg-theme-500/80 text-white px-1.5 py-0.5 rounded-full whitespace-nowrap flex-shrink-0">Clean Slate</span>
             )}
             {isPvP && (
               <button
                 onClick={() => setIsChatOpen(true)}
-                className="ml-2 px-3 py-1 rounded-full bg-gradient-to-br from-blue-500/70 to-teal-500/70 text-white shadow-[0_0_10px_rgba(20,184,166,0.5)] backdrop-blur-sm hover:shadow-[0_0_20px_rgba(20,184,166,0.8)] transition-all duration-300 relative flex items-center gap-1 text-xs font-bold"
+                className="ml-2 px-3 py-1 rounded-full bg-gradient-to-br from-blue-500/70 to-teal-500/70 text-white shadow-[0_0_10px_rgba(20,184,166,0.5)] backdrop-blur-sm hover:shadow-[0_0_20px_rgba(20,184,166,0.8)] transition-all duration-300 relative flex items-center gap-1 text-xs font-bold flex-shrink-0"
                 title="Chat with opponent"
               >
                 Chat
@@ -766,7 +775,7 @@ const Game: React.FC = () => {
               </button>
             )}
           </div>
-          <div className="text-base font-bold">Sum: {opponent.score}</div>
+          <div className="text-base font-bold flex-shrink-0 ml-2">Sum: {opponent.score}</div>
         </div>
         
         {/* Opponent's Hand */}
@@ -781,7 +790,7 @@ const Game: React.FC = () => {
                   key={card.id} 
                   className={`transition-all duration-300 transform-gpu ${isOpponentHandExpanded ? 'flex-shrink-0' : '-ml-8 first:ml-0 z-10'}`}
                 >
-                  <Card card={card} isHidden={true} themeColor={themeColor} />
+                  <Card card={card} isHidden={true} themeColor={themeColor} isSubtracting={opponent.score > targetNumber} />
                 </div>
               ))}
             </div>
@@ -800,7 +809,7 @@ const Game: React.FC = () => {
                   key={card.id} 
                   className={`transition-all duration-300 transform-gpu ${isOpponentRowExpanded ? 'flex-shrink-0' : '-ml-8 first:ml-0 z-10'}`}
                 >
-                  <Card card={card} themeColor={themeColor} />
+                  <Card card={card} themeColor={themeColor} isSubtracting={opponent.score > targetNumber} />
                 </div>
               ))}
             </div>
@@ -925,13 +934,13 @@ const Game: React.FC = () => {
       {/* Player Area */}
       <div className="w-full flex flex-col items-center gap-1 pb-10">
         <div className="flex justify-between w-full px-4 items-center">
-          <div className="text-base font-bold w-20 flex items-center gap-2">
-            {player.name || 'You'}
+          <div className="text-base font-bold flex items-center gap-2 flex-1 min-w-0">
+            <span className="truncate">{player.name || 'You'}</span>
             {player.cleanSlate && (
-              <span className="text-[10px] bg-theme-500/80 text-white px-1.5 py-0.5 rounded-full whitespace-nowrap">Clean Slate</span>
+              <span className="text-[10px] bg-theme-500/80 text-white px-1.5 py-0.5 rounded-full whitespace-nowrap flex-shrink-0">Clean Slate</span>
             )}
           </div>
-          <div className="flex-1 flex justify-center">
+          <div className="flex-1 flex justify-center flex-shrink-0 mx-2">
             {activePlayerIndex === playerIndex && hasDrawnCardThisTurn && !drawnCard && gameState.isStrategicMode && (
               <button 
                 onClick={handleEndTurn}
@@ -941,7 +950,7 @@ const Game: React.FC = () => {
               </button>
             )}
           </div>
-          <div className="text-base font-bold w-20 text-right">Sum: {player.score}</div>
+          <div className="text-base font-bold flex-1 text-right flex-shrink-0">Sum: {player.score}</div>
         </div>
 
         {/* Player's Row */}
@@ -956,7 +965,7 @@ const Game: React.FC = () => {
                   key={card.id} 
                   className={`transition-all duration-300 transform-gpu ${isPlayerRowExpanded ? 'flex-shrink-0' : '-ml-8 first:ml-0 z-10'}`}
                 >
-                  <Card card={card} themeColor={themeColor} />
+                  <Card card={card} themeColor={themeColor} isSubtracting={player.score > targetNumber} />
                 </div>
               ))}
             </div>
@@ -997,6 +1006,7 @@ const Game: React.FC = () => {
                     <Card 
                       card={card} 
                       themeColor={themeColor}
+                      isSubtracting={player.score > targetNumber}
                       onGambleChoice={onGambleChoice}
                       onClick={(id, e) => {
                         if (isHandExpanded && isCardPlayable) {
@@ -1032,7 +1042,7 @@ const Game: React.FC = () => {
             transition={{ duration: 0.3, ease: 'easeOut' }}
           >
             <div className="flex flex-col items-center gap-4">
-              <Card card={drawnCard} isHidden={activePlayerIndex !== playerIndex} themeColor={themeColor} onGambleChoice={onGambleChoice} />
+              <Card card={drawnCard} isHidden={activePlayerIndex !== playerIndex} themeColor={themeColor} onGambleChoice={onGambleChoice} isSubtracting={players[activePlayerIndex].score > targetNumber} />
               {pendingGambleDecision && activePlayerIndex === playerIndex && (
                 <div className="p-4 rounded-lg border-2 border-[var(--theme-700)] shadow-xl max-w-sm text-center text-xs" style={{ backgroundColor: 'var(--theme-900)' }}>
                   <p className="mb-1 font-bold text-white">Gamble Card Drawn!</p>
@@ -1438,7 +1448,7 @@ const Game: React.FC = () => {
 
                   <div className="mt-3 space-y-2 text-xs text-theme-300">
                     <p><strong>Risk & Reward:</strong> If you choose Negative and the target number drops to exactly match your score, you <strong>win instantly</strong>. But if it drops below your score, you <strong>bust and lose</strong>!</p>
-                    <p className="text-amber-300/80 italic">Note: Negative gamble cards do not add to your score, they only lower the target.</p>
+                    <p className="text-amber-300/80 italic"><strong>Opponent Impact:</strong> If you play a negative gamble card and the target number drops below your opponent's score, it's not their fault! From that point on, any cards your opponent plays will <strong>subtract</strong> from their score to help them reach the new, lower target number. If the target number goes back above their score, their cards will count forward again.</p>
                   </div>
                 </section>
                 
