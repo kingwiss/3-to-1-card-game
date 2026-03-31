@@ -982,17 +982,22 @@ const Game: React.FC = () => {
             <div className={`flex items-center m-auto transition-all duration-300 ${isHandExpanded ? 'gap-2 px-4' : ''}`}>
               {player.hand.map((card) => {
                 const isMyTurnToPlay = activePlayerIndex === playerIndex && hasDrawnCardThisTurn && !drawnCard;
+                const isSubtracting = player.score > targetNumber;
                 const isCardPlayable = 
                   isMyTurnToPlay && (
                     card.type === 'golden' || 
+                    (card.type === 'gamble' && !card.isGambleRevealed) ||
                     (
-                      player.score + card.value <= targetNumber &&
-                      !(player.row.length > 0 && player.row[player.row.length - 1].value === card.value) &&
+                      (card.type === 'sequence' && card.sequence ? 
+                        (isSubtracting ? player.score - card.sequence.reduce((a, b) => a + b, 0) >= targetNumber : player.score + card.sequence.reduce((a, b) => a + b, 0) <= targetNumber) :
+                        (isSubtracting ? player.score - (card.permanentValue || card.value) >= targetNumber : player.score + (card.permanentValue || card.value) <= targetNumber)
+                      ) &&
+                      (!player.cleanSlate ? !(player.row.length > 0 && player.row[player.row.length - 1].value === (card.type === 'sequence' && card.sequence ? card.sequence[0] : (card.permanentValue || card.value))) : true) &&
                       (
                         (card.type === 'gamble' && card.isGambleRevealed && card.gambleChoice === 'positive') ||
                         (
-                          (card.type !== 'gamble' || card.isGambleRevealed) && 
-                          !(card.value > 3 && !player.highCardsUnlocked)
+                          card.type !== 'gamble' && 
+                          !((card.permanentValue || card.value) > 3 && !player.highCardsUnlocked)
                         )
                       )
                     )
