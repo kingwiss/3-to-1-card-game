@@ -76,12 +76,20 @@ const hasEligibleMoves = (player: Player, targetNumber: number): boolean => {
 
   for (const card of player.hand) {
     // Special card logic for eligibility
-    if (card.type === 'golden') return true; // Can always play golden card (assuming player chooses valid number)
+    if (card.type === 'golden') {
+      // Can play golden card if at least value 1 fits
+      const effectiveValue = isSubtracting ? -1 : 1;
+      if (isSubtracting && player.score + effectiveValue < targetNumber) continue;
+      if (!isSubtracting && player.score + effectiveValue > targetNumber) continue;
+      return true;
+    }
     
     if (card.type === 'gamble' && !card.isGambleRevealed) return true; // Can always choose +/- for gamble card
     
     if (card.type === 'gamble' && card.isGambleRevealed && card.gambleChoice === 'positive') {
        const effectiveValue = isSubtracting ? -card.value : card.value;
+       if (isSubtracting && player.score + effectiveValue < targetNumber) continue;
+       if (!isSubtracting && player.score + effectiveValue > targetNumber) continue;
        if (!player.cleanSlate && player.row.length > 0 && player.row[player.row.length - 1].value === card.value) continue;
        if (card.value > 3 && !player.highCardsUnlocked) continue;
        return true;
@@ -89,6 +97,8 @@ const hasEligibleMoves = (player: Player, targetNumber: number): boolean => {
     
     if (card.type === 'permanent' && card.permanentValue) {
        const effectiveValue = isSubtracting ? -card.permanentValue : card.permanentValue;
+       if (isSubtracting && player.score + effectiveValue < targetNumber) continue;
+       if (!isSubtracting && player.score + effectiveValue > targetNumber) continue;
        if (!player.cleanSlate && player.row.length > 0 && player.row[player.row.length - 1].value === card.permanentValue) continue;
        return true;
     }
@@ -96,12 +106,16 @@ const hasEligibleMoves = (player: Player, targetNumber: number): boolean => {
     if (card.type === 'sequence' && card.sequence) {
        const seqSum = card.sequence.reduce((a, b) => a + b, 0);
        const effectiveSeqSum = isSubtracting ? -seqSum : seqSum;
+       if (isSubtracting && player.score + effectiveSeqSum < targetNumber) continue;
+       if (!isSubtracting && player.score + effectiveSeqSum > targetNumber) continue;
        if (!player.cleanSlate && player.row.length > 0 && player.row[player.row.length - 1].value === card.sequence[0]) continue;
        return true;
     }
 
     // Normal card logic
     const effectiveValue = isSubtracting ? -card.value : card.value;
+    if (isSubtracting && player.score + effectiveValue < targetNumber) continue;
+    if (!isSubtracting && player.score + effectiveValue > targetNumber) continue;
     if (!player.cleanSlate && player.row.length > 0 && player.row[player.row.length - 1].value === card.value) {
       continue;
     }
