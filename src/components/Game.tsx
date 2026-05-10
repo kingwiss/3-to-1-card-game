@@ -1095,7 +1095,7 @@ const Game: React.FC = () => {
       </AnimatePresence>
 
       {/* Bottom Controls */}
-      <div className="absolute bottom-4 left-4 flex flex-col items-start gap-4 z-40">
+      <div className={`absolute bottom-4 left-4 flex flex-col items-start gap-4 z-40 transition-opacity duration-300 ${isHandExpanded ? 'opacity-25 hover:opacity-100' : 'opacity-100'}`}>
         {/* Unified Left Menu for both Free and Premium */}
         <div className="flex flex-col items-start gap-3">
           <AnimatePresence>
@@ -1236,7 +1236,7 @@ const Game: React.FC = () => {
       </div>
 
       {/* Floating Action Menu */}
-      <div className="absolute bottom-4 right-4 flex flex-col items-end gap-3 z-40">
+      <div className={`absolute bottom-4 right-4 flex flex-col items-end gap-3 z-40 transition-opacity duration-300 ${isHandExpanded ? 'opacity-25 hover:opacity-100' : 'opacity-100'}`}>
         <AnimatePresence>
           {isMenuOpen && (
             <motion.div
